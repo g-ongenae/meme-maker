@@ -1,0 +1,12 @@
+{
+  "name": "meme-maker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fetch:imgflip": "node scripts/fetch-imgflip.mjs",
+    "dedupe": "node scripts/dedupe.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
+  }
+}

@@ -1,0 +1,3 @@
+node_modules/
+# Regenerate with: npm run fetch:imgflip && npm run dedupe
+data/
