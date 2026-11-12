@@ -1,8 +1,8 @@
 {
   "same": [
     {
-      "note": "Drake Hotline Bling: re-cropped panels, framed and swapped versions",
-      "ids": ["30b1gx", "1iruch", "2hu5lp", "1s8ffi", "2178y0", "16kb1d"]
+      "note": "Drake Hotline Bling: re-cropped panels and framed versions",
+      "ids": ["30b1gx", "1iruch", "2hu5lp", "1s8ffi", "16kb1d"]
     },
     {
       "note": "Anakin Padme 4 panel: panels cropped differently",
@@ -11,7 +11,34 @@
     {
       "note": "Disappearing kid: static collage of the animation",
       "ids": ["3ohapu", "1h2kbp"]
-    }
+    },
+    { "note": "Epic Handshake: Black White Arms", "ids": ["28j0te", "2gycra"] },
+    { "note": "Marked safe from: bigger version", "ids": ["2odckz", "7qpayf"] },
+    { "note": "Change my mind: tilt corrected", "ids": ["24y43o", "4t85g9"] },
+    { "note": "Oprah you get a: another upload", "ids": ["gtj5t", "h9a4w"] },
+    { "note": "Where I'd put my trophy: Timmy Turner's dad", "ids": ["kg6zg", "fqk6q"] },
+    { "note": "Roll Safe: Thinking black guy", "ids": ["2pzj16", "1jqcf8"] },
+    { "note": "Monkey puppet: looking away", "ids": ["2tfsx4", "30r1af"] },
+    { "note": "Two guys on a bus: another upload", "ids": ["5vlrok", "5v4jto"] },
+    { "note": "Surprised Pikachu: other uploads", "ids": ["2kbn1e", "2l2ri4", "2mwc77"] },
+    { "note": "Types of headaches", "ids": ["1yz6z4", "2l4kzk"] },
+    { "note": "Something of a scientist myself", "ids": ["27qxmb", "2y8ggi"] },
+    { "note": "Say the line Bart", "ids": ["176h0h", "2q7knz"] },
+    { "note": "Bugs Bunny no", "ids": ["2yn2xy", "34mv9a"] },
+    { "note": "Disappointed black guy: Happy shock", "ids": ["3xr9iz", "43plhr"] },
+    { "note": "Teacher's copy: Mr Incredible normal and dark", "ids": ["59c1hh", "5kc7ce", "5mir21"] },
+    { "note": "If those kids could read: no watermark", "ids": ["40qhlp", "40kuho"] },
+    { "note": "That would be great: Lumbergh", "ids": ["c2qn", "kka0a"] },
+    { "note": "My body is a machine", "ids": ["7auxhl", "7bb4db"] },
+    { "note": "Illusion of free choice: blank", "ids": ["2dhurg", "48s52t"] },
+    { "note": "Greedy pipe man: fat guy drinking water", "ids": ["6fesx7", "4oa4sm"] },
+    { "note": "Friendship ended", "ids": ["4jx0x8", "29v4rt"] },
+    { "note": "Guy in corner of party: Party loner, They don't know", "ids": ["4w91j7", "4oqd5v", "4q6ogo"] },
+    { "note": "Really, right in front of my", "ids": ["7stvln", "8cd3qa"] },
+    { "note": "Fernanfloo dresses up: aunt's and sister's wedding", "ids": ["52atyz", "4ykrm9", "5a0m7c"] },
+    { "note": "Laughing men in suits", "ids": ["18fli", "3ms1"] },
+    { "note": "Stop trying to make fetch happen", "ids": ["4hvlq", "1q0ylm"] },
+    { "note": "This is fine: Dog in burning house", "ids": ["1buxli", "jl9b3"] }
   ],
   "different": [
     {
@@ -21,7 +48,8 @@
     {
       "note": "Malicious Advice Mallard is the red variant of Actual Advice Mallard",
       "ids": ["t2sg", "y7d3"]
-    }
+    },
+    { "note": "Epic Handshake Three Way is a variant of Epic Handshake", "ids": ["3897bm", "2gycra"] }
   ],
   "variants": [
     {
@@ -35,7 +63,17 @@
     {
       "note": "Train hitting a school bus: two framings",
       "ids": ["434i5j", "485y4p"]
-    }
+    },
+    { "note": "Drake yes no reverse: swapped panels", "ids": ["30b1gx", "2178y0"] },
+    { "note": "Gru's plan: 5 panels", "ids": ["26jxvz", "2f2mp3"] },
+    { "note": "Epic Handshake Three Way", "ids": ["28j0te", "3897bm"] },
+    { "note": "Scooby Doo unmasking", "ids": ["2eeunw", "2maizo"] },
+    { "note": "Spider-Man pointing: three of them", "ids": ["1tkjq9", "3eqjd8"] },
+    { "note": "Look at me, I'm the captain now", "ids": ["hlmst", "hzkvr"] },
+    { "note": "Car salesman slaps roof / hood", "ids": ["2d3al6", "2d9dey"] },
+    { "note": "Two buttons: both pressed", "ids": ["4qntuo", "1g8my4"] },
+    { "note": "Willem Dafoe looking up", "ids": ["62yufy", "5blorg"] },
+    { "note": "Zero days since: Futurama and Simpsons", "ids": ["7f647v", "72epa9"] }
   ],
   "unrelated": [
     {
@@ -45,6 +83,17 @@
     {
       "note": "Low-contrast close-ups",
       "ids": ["34uws", "4n96w"]
-    }
+    },
+    { "note": "Squidward window / Squidward", "ids": ["20oad6", "145qvv", "64ku"] },
+    { "note": "George Bush 9/11 / George Bush", "ids": ["728b6t", "3gdsh1", "7b51kw", "86kchv", "3kov"] },
+    { "note": "Scooby Doo mask reveal / Scooby Doo", "ids": ["2eeunw", "34n4"] },
+    { "note": "Say the line Bart / Bart no", "ids": ["176h0h", "2q7knz", "31dlvs"] },
+    { "note": "Yoda / Star Wars no", "ids": ["8k0sa", "bfexh"] },
+    { "note": "Bugs Bunny communist / Bugs Bunny no", "ids": ["44eggm", "472b3c", "2yn2xy", "34mv9a"] },
+    { "note": "Obama medal / Obama", "ids": ["1hhv9m", "3yxj"] },
+    { "note": "First world problems / 1990s", "ids": ["1bhf", "a0bh", "265s"] },
+    { "note": "First world problems / cat", "ids": ["1bhf", "a0bh", "26h1"] },
+    { "note": "First world problems / stoner", "ids": ["1bhf", "a0bh", "26he"] },
+    { "note": "Squid Game / Squid Game 2", "ids": ["98qr33", "9985e5", "9yyek1"] }
   ]
 }
