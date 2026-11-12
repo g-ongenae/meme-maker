@@ -70,7 +70,8 @@ template id in `client/categories.ts`.
 
 ### Create a background
 
-“Create background” (or `#editor` in the address bar) opens an editor for backgrounds
+“Create background” (or the “Create your own” tile heading the Backgrounds, or `#editor`
+in the address bar) opens an editor for backgrounds
 in the style of advice-animal templates, drawn on a canvas in the browser:
 
 - Patterns: **sunburst** (slices from a centre point, colours in turn), **glow** (a

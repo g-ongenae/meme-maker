@@ -127,6 +127,26 @@ function buildCard(t: Template): Card {
   return { template: t, el: li, aka, keys: searchKeys(t), category: categoryOf(t) };
 }
 
+// First tile of the Backgrounds, opening the editor.
+function buildCreateTile(): HTMLLIElement {
+  const li = document.createElement('li');
+  const a = document.createElement('a');
+  a.className = 'card create';
+  a.href = '#editor';
+  a.title = 'Create a background';
+  const art = document.createElement('span');
+  art.className = 'art';
+  art.ariaHidden = 'true';
+  art.textContent = '+';
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = 'Create your own';
+  a.append(art, name);
+  li.append(a);
+  return li;
+}
+const createTile = buildCreateTile();
+
 const sortKey = (): SortKey => (isSortKey(sort.value) ? sort.value : 'rank');
 const selectedCategory = (): Category | null => (isCategory(category.value) ? category.value : null);
 
@@ -157,7 +177,8 @@ function render(): void {
     if (alias > -1) card.aka.textContent = `aka ${card.template.aliases[alias]}`;
     if (found) visible.push(card);
   }
-  grid.replaceChildren(...ordered.map((c) => c.el));
+  const create = cat === 'background' && !words.length;
+  grid.replaceChildren(...(create ? [createTile] : []), ...ordered.map((c) => c.el));
 
   count.textContent =
     visible.length === cards.length
@@ -340,9 +361,10 @@ function openFromHash(): void {
 grid.addEventListener('click', (e) => {
   const link = (e.target as Element).closest('.card');
   if (!link || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
-  e.preventDefault();
   const card = cards.find((c) => c.el === link.parentElement);
-  if (card) show(card);
+  if (!card) return; // the create tile follows its link to the editor
+  e.preventDefault();
+  show(card);
 });
 $('close').addEventListener('click', () => viewer.close());
 relatedToggle.addEventListener('click', togglePanel);

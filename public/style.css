@@ -192,6 +192,26 @@ h1 {
   font-size: 12px;
   color: var(--muted);
 }
+/* The tile opening the background editor. */
+.card.create .art {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  margin: 10px 10px 0;
+  border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 56px;
+  font-weight: 300;
+  line-height: 1;
+}
+.card.create:hover .art {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.card.create .name {
+  color: var(--accent-text);
+}
 #empty {
   padding: 64px 20px;
   text-align: center;
