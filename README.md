@@ -13,11 +13,21 @@ npm run dedupe          # remove duplicates → data/templates/ (+ index.json)
 ```
 
 - `fetch:imgflip` downloads the full-size original of every template (falling back
-  to `.png`/`.gif` when the `.jpg` doesn't exist). It's resumable: already-downloaded
-  files are skipped.
-- `dedupe` groups visually identical images (perceptual dHash + colour thumbnail +
-  aspect ratio), keeps the most popular name and the highest-resolution file, and
-  records the other names as `aliases`. Review merged groups in `data/duplicates.html`.
+  to `.png`/`.gif` when the `.jpg` doesn't exist). Animated ("GIF") templates are
+  downloaded as the `.mp4` imgflip serves them as. It's resumable: already-downloaded
+  files are skipped, and templates that have dropped out of imgflip's listing since
+  the last run are kept.
+- `dedupe` trims uniform borders, then groups images that are the same picture
+  (perceptual dHash + colour thumbnail + aspect ratio) or a crop of one another
+  (normalized cross-correlation, then the same checks on the aligned region). It
+  keeps the most popular name and the highest-resolution file, records the other
+  names as `aliases`, and writes a `.poster.jpg` still for animated templates.
+  Review merged groups in `data/duplicates.html`.
+- Duplicates the comparison misses (swapped panels, collages…) go under `same` in
+  `scripts/duplicates.json`, and false matches under `different`, by imgflip id.
+  `node scripts/dedupe.mjs --explain <id>,<id>` shows why two images match or not.
+- Frames are read from videos with the ffmpeg binary from `ffmpeg-static` (set
+  `FFMPEG` to use another one).
 
 ## Browse
 

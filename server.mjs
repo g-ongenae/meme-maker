@@ -2,9 +2,11 @@
 //
 //   GET /                 → public/index.html
 //   GET /api/templates    → data/templates/index.json
-//   GET /img/<file>       → full-size image from data/templates/
-//   GET /thumb/<file>     → 400px WebP thumbnail, generated on demand with sharp
-//                           and cached in data/thumbs/
+//   GET /img/<file>       → full-size image (or .mp4 animated template) from
+//                           data/templates/, with Range support for videos
+//   GET /thumb/<file>     → 400px WebP thumbnail of an image, generated on
+//                           demand with sharp and cached in data/thumbs/
+//                           (animated templates use their .poster.jpg)
 //
 // Usage: node server.mjs   (PORT and HOST env vars override 4321 / 127.0.0.1)
 
@@ -29,6 +31,7 @@ const TYPES = {
   '.png': 'image/png',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
 };
 
 // sharp is only needed for thumbnails; without it the page gets the originals.
@@ -45,37 +48,59 @@ function sendText(res, status, body) {
 }
 
 // Streams a file with an ETag so the browser revalidates cheaply and still
-// picks up changes after the crawl scripts are re-run.
+// picks up changes after the crawl scripts are re-run. Single byte ranges are
+// honoured, since browsers (Safari in particular) need them to play videos.
 async function sendFile(req, res, file) {
   const info = await stat(file).catch(() => null);
   if (!info?.isFile()) return sendText(res, 404, 'Not found');
 
   const etag = `"${info.size.toString(36)}-${Math.round(info.mtimeMs).toString(36)}"`;
-  const headers = { ETag: etag, 'Cache-Control': 'no-cache' };
+  const headers = { ETag: etag, 'Cache-Control': 'no-cache', 'Accept-Ranges': 'bytes' };
   if (req.headers['if-none-match'] === etag) {
     res.writeHead(304, headers);
     return res.end();
   }
-  res.writeHead(200, {
+
+  let start = 0, end = info.size - 1, status = 200;
+  const range = req.headers.range?.match(/^bytes=(\d*)-(\d*)$/);
+  const ifRange = req.headers['if-range'];
+  if (range && (range[1] || range[2]) && (!ifRange || ifRange === etag)) {
+    if (range[1]) {
+      start = Number(range[1]);
+      if (range[2]) end = Math.min(end, Number(range[2]));
+    } else {
+      start = Math.max(0, info.size - Number(range[2]));
+    }
+    if (start > end) {
+      res.writeHead(416, { ...headers, 'Content-Range': `bytes */${info.size}` });
+      return res.end();
+    }
+    status = 206;
+    headers['Content-Range'] = `bytes ${start}-${end}/${info.size}`;
+  }
+
+  res.writeHead(status, {
     ...headers,
     'Content-Type': TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
-    'Content-Length': info.size,
+    'Content-Length': end - start + 1,
   });
   if (req.method === 'HEAD') return res.end();
-  createReadStream(file).on('error', () => res.destroy()).pipe(res);
+  createReadStream(file, { start, end }).on('error', () => res.destroy()).pipe(res);
 }
 
-// Only bare image file names are accepted, so a request can never leave the
-// directory (or fetch index.json through the image routes).
-function safeName(encoded) {
+// Only bare image (or, for /img/, video) file names are accepted, so a
+// request can never leave the directory (or fetch index.json through the
+// image routes).
+function safeName(encoded, allowVideo) {
   let name;
   try {
     name = decodeURIComponent(encoded);
   } catch {
     return null;
   }
+  const type = TYPES[path.extname(name).toLowerCase()] ?? '';
   const ok = name === path.basename(name) && !name.startsWith('.') &&
-    TYPES[path.extname(name).toLowerCase()]?.startsWith('image/');
+    (type.startsWith('image/') || (allowVideo && type.startsWith('video/')));
   return ok ? name : null;
 }
 
@@ -112,7 +137,7 @@ async function handle(req, res) {
   if (pathname === '/api/templates') return sendFile(req, res, path.join(TEMPLATES_DIR, 'index.json'));
 
   const match = pathname.match(/^\/(img|thumb)\/([^/]+)$/);
-  const name = match && safeName(match[2]);
+  const name = match && safeName(match[2], match[1] === 'img');
   if (!name) return sendText(res, 404, 'Not found');
 
   const original = path.join(TEMPLATES_DIR, name);
