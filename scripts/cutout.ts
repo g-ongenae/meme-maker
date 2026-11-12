@@ -44,8 +44,20 @@ export interface CutoutOptions {
   holes?: boolean;
   /** Smallest such area, as a fraction of the image. */
   holeArea?: number;
+  /**
+   * Gaps in the subject's outline up to twice this wide (pixels) are closed,
+   * so that the fill doesn't leak inside line art whose inside is the colour
+   * of the background.
+   */
+  close?: number;
   /** Extra starting points of the background fill, as [x, y]. */
   seeds?: [number, number][];
+  /**
+   * The fill only starts from edge pixels whose colour is on at least this
+   * fraction of the edges: not from lines of the subject running into them
+   * (line art). 0 for every edge pixel.
+   */
+  minSeed?: number;
   /** Width of the background's lines to remove whatever their colour (pixels); 0 for blended ones only. */
   lines?: number;
   /** Pieces of the subject smaller than this fraction of the largest one are dropped. */
@@ -68,7 +80,9 @@ export const DEFAULTS = {
   edges: ['top', 'right', 'bottom', 'left'],
   holes: true,
   holeArea: 0.002,
+  close: 0,
   seeds: [],
+  minSeed: 0,
   minPiece: 0.02,
   lines: 0,
   unmix: true,
@@ -196,6 +210,67 @@ export function components(
   return { labels, sizes, touchesEdge };
 }
 
+function neighbours8(p: number, width: number, height: number): number[] {
+  const x = p % width;
+  const y = (p - x) / width;
+  const out: number[] = [];
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const [nx, ny] = [x + dx, y + dy];
+      if ((dx || dy) && nx >= 0 && ny >= 0 && nx < width && ny < height) out.push(ny * width + nx);
+    }
+  return out;
+}
+
+/** The pixels that aren't BG in `mask`, grown by `radius` (1 where they are). */
+function dilate(mask: Uint8Array, width: number, radius: number): Uint8Array {
+  const height = mask.length / width;
+  const out = new Uint8Array(mask.length);
+  let front: number[] = [];
+  for (let p = 0; p < mask.length; p++) {
+    if (mask[p] === BG) continue;
+    out[p] = 1;
+    front.push(p);
+  }
+  for (let r = 0; r < radius; r++) {
+    const next: number[] = [];
+    for (const p of front) {
+      for (const q of neighbours8(p, width, height)) {
+        if (out[q]) continue;
+        out[q] = 1;
+        next.push(q);
+      }
+    }
+    front = next;
+  }
+  return out;
+}
+
+// The pixels among `pixels` whose colour, on a 16-level grid (and the
+// shades next to it), is on at least `fraction` of them.
+function commonColours(img: RawImage, pixels: number[], fraction: number): number[] {
+  const { channels: c, data } = img;
+  const bin = (p: number) => [data[p * c] >> 4, data[p * c + 1] >> 4, data[p * c + 2] >> 4];
+  const counts = new Uint32Array(16 ** 3);
+  for (const p of pixels) {
+    const [r, g, b] = bin(p);
+    counts[(r << 8) | (g << 4) | b]++;
+  }
+  const min = fraction * pixels.length;
+  return pixels.filter((p) => {
+    const [r, g, b] = bin(p);
+    let n = 0;
+    for (let dr = -1; dr <= 1; dr++)
+      for (let dg = -1; dg <= 1; dg++)
+        for (let db = -1; db <= 1; db++) {
+          const [nr, ng, nb] = [r + dr, g + dg, b + db];
+          if (nr >= 0 && ng >= 0 && nb >= 0 && nr < 16 && ng < 16 && nb < 16)
+            n += counts[(nr << 8) | (ng << 4) | nb];
+        }
+    return n >= min;
+  });
+}
+
 // Colours of the background, on a 32-level grid widened by one step so
 // nearby shades count too.
 function palette(img: RawImage, mask: Uint8Array): Uint8Array {
@@ -269,8 +344,38 @@ export function backgroundMask(smooth: RawImage, options: CutoutOptions = {}): U
     for (let p = 0; p < n; p++) if (pinned[p] === 1) m[p] = 2;
   };
   walls(mask);
-  fill(smooth, mask, [...edgePixels(width, height, o.edges), ...o.seeds.map(([x, y]) => y * width + x)], o);
+  const seeds = [
+    ...commonColours(smooth, edgePixels(width, height, o.edges), o.minSeed),
+    ...o.seeds.map(([x, y]) => y * width + x),
+  ];
+  fill(smooth, mask, seeds, o);
   for (let p = 0; p < n; p++) if (mask[p] === 2) mask[p] = 0;
+
+  if (o.close > 0) {
+    // Fill again with what the first fill left out grown by `close` as
+    // walls, which closes the gaps, then give the background back the band
+    // grown over it, from the outside only.
+    const first = mask.slice();
+    const band = dilate(first, width, o.close);
+    mask.fill(0);
+    for (let p = 0; p < n; p++) if (band[p]) mask[p] = 2;
+    walls(mask);
+    fill(smooth, mask, seeds, o);
+    let front: number[] = [];
+    for (let p = 0; p < n; p++) if (mask[p] === BG) front.push(p);
+    for (let r = 0; r < o.close && front.length; r++) {
+      const next: number[] = [];
+      for (const p of front) {
+        for (const q of neighbours8(p, width, height)) {
+          if (mask[q] !== 2 || first[q] !== BG || pinned[q] === 1) continue;
+          mask[q] = BG;
+          next.push(q);
+        }
+      }
+      front = next;
+    }
+    for (let p = 0; p < n; p++) if (mask[p] === 2) mask[p] = 0;
+  }
 
   if (o.holes) {
     const bins = palette(smooth, mask);
