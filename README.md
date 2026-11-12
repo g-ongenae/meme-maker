@@ -40,6 +40,11 @@ and `style.css`) and its script, compiled from `client/` to `dist/client/`, to s
 sort and view the templates in `data/templates/`. Thumbnails are rendered on demand
 with sharp and cached in `data/thumbs/`.
 
+The category menu filters the list: GIFs (animated templates), Complete (every
+other template), Backgrounds (blank pages, plain colours), Formats (empty panel
+layouts) and Additions (elements such as faces, none yet). Backgrounds, Formats
+and Additions are listed by template id in `client/categories.ts`.
+
 ## Development
 
 Everything is TypeScript. Node ≥ 26 runs the server and scripts

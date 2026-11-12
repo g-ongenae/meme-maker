@@ -1,5 +1,6 @@
-// Template browser: grid with search and sort, plus a viewer dialog.
+// Template browser: grid with search, category filter and sort, plus a viewer dialog.
 
+import { type Category, CATEGORIES, categoryOf, isCategory } from './categories.ts';
 import {
   type SearchKeys,
   type SortKey,
@@ -23,6 +24,7 @@ const grid = $<HTMLUListElement>('grid');
 const empty = $<HTMLParagraphElement>('empty');
 const count = $('count');
 const search = $<HTMLInputElement>('search');
+const category = $<HTMLSelectElement>('category');
 const sort = $<HTMLSelectElement>('sort');
 const viewer = $<HTMLDialogElement>('viewer');
 const big = $<HTMLImageElement>('big');
@@ -41,6 +43,7 @@ interface Card {
   el: HTMLLIElement;
   aka: HTMLSpanElement;
   keys: SearchKeys;
+  category: Category;
 }
 
 let cards: Card[] = [];
@@ -78,19 +81,33 @@ function buildCard(t: Template): Card {
   }
   a.append(name, aka);
   li.append(a);
-  return { template: t, el: li, aka, keys: searchKeys(t) };
+  return { template: t, el: li, aka, keys: searchKeys(t), category: categoryOf(t) };
 }
 
 const sortKey = (): SortKey => (isSortKey(sort.value) ? sort.value : 'rank');
+const selectedCategory = (): Category | null => (isCategory(category.value) ? category.value : null);
+
+function fillCategories(): void {
+  for (const [key, label] of Object.entries(CATEGORIES)) {
+    const n = cards.filter((c) => c.category === key).length;
+    category.append(new Option(`${label} (${fmt.format(n)})`, key));
+  }
+}
+
+function emptyMessage(query: string, cat: Category | null): string {
+  const where = cat ? ` in ${CATEGORIES[cat]}` : '';
+  return query ? `No template matches “${query}”${where}.` : `No template${where} yet.`;
+}
 
 function render(): void {
   const words = searchWords(search.value);
+  const cat = selectedCategory();
   const compare = SORTS[sortKey()];
   const ordered = [...cards].sort((a, b) => compare(a.template, b.template));
   visible = [];
 
   for (const card of ordered) {
-    const found = match(card.keys, words);
+    const found = !cat || card.category === cat ? match(card.keys, words) : null;
     const alias = found?.alias ?? -1;
     card.el.hidden = !found;
     card.aka.hidden = alias < 0;
@@ -104,11 +121,13 @@ function render(): void {
       ? `${fmt.format(cards.length)} templates`
       : `${fmt.format(visible.length)} of ${fmt.format(cards.length)}`;
   empty.hidden = visible.length > 0;
-  if (!visible.length) empty.textContent = `No template matches “${search.value.trim()}”.`;
+  if (!visible.length) empty.textContent = emptyMessage(search.value.trim(), cat);
 
   const url = new URL(location.href);
   if (search.value.trim()) url.searchParams.set('q', search.value.trim());
   else url.searchParams.delete('q');
+  if (cat) url.searchParams.set('category', cat);
+  else url.searchParams.delete('category');
   if (sort.value === 'rank') url.searchParams.delete('sort');
   else url.searchParams.set('sort', sort.value);
   history.replaceState(null, '', url);
@@ -208,6 +227,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 search.addEventListener('input', render);
+category.addEventListener('change', render);
 sort.addEventListener('change', render);
 
 async function init(): Promise<void> {
@@ -219,9 +239,12 @@ async function init(): Promise<void> {
     return;
   }
   cards = ((await res.json()) as Template[]).map(buildCard);
+  fillCategories();
 
   const params = new URLSearchParams(location.search);
   search.value = params.get('q') ?? '';
+  const categoryParam = params.get('category');
+  if (isCategory(categoryParam)) category.value = categoryParam;
   const sortParam = params.get('sort');
   if (isSortKey(sortParam)) sort.value = sortParam;
   const hash = location.hash;

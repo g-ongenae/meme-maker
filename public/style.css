@@ -87,9 +87,10 @@ h1 {
   display: flex;
   gap: 8px;
   flex: 1 1 320px;
-  max-width: 520px;
+  max-width: 680px;
 }
 #search,
+#category,
 #sort {
   height: 36px;
   padding: 0 12px;
