@@ -14,10 +14,11 @@
 //               scripts/duplicates.json (for duplicates no image comparison
 //               can see, e.g. swapped panels). Pairs listed under "different"
 //               are never matched automatically.
-// In each group the most popular template (lowest imgflip rank) keeps its name.
-// The file kept is the one with the most pixels, among the members that are
-// animated (or static) like that most popular one; the other members' files
-// are kept too, as the template's `duplicates` (alternative formats).
+// An animated and a static image are never duplicates: a group mixing them is
+// split in two, and the two parts are each other's variants ("animated").
+// In each group the most popular template (lowest imgflip rank) keeps its name
+// and the file with the most pixels is kept; the other members' files are kept
+// too, as the template's `duplicates` (alternative formats).
 //
 // Templates that are related but not duplicates are recorded as each other's
 // `variants` when:
@@ -195,8 +196,10 @@ function explain(a: Item, b: Item, manual: Manual): void {
     [regionOf(a, b), regionOf(b, a)].find((m) => m?.panels)?.why ??
     similarImage(a, b) ??
     (similarNames(nameWords(a.name), nameWords(b.name)) ? 'name' : null);
+  const same = sameImage(a, b, THRESHOLD) ?? cropOf(a, b) ?? cropOf(b, a);
+  const split = same && isVideo(a.file) !== isVideo(b.file);
   console.log(
-    `  → ${sameImage(a, b, THRESHOLD) ?? cropOf(a, b) ?? cropOf(b, a) ?? (variant ? `variant: ${variant}` : 'not related')}`,
+    `  → ${split ? `variant: animated (${same})` : (same ?? (variant ? `variant: ${variant}` : 'not related'))}`,
   );
 }
 
@@ -296,6 +299,30 @@ async function main(): Promise<void> {
     for (const i of found.slice(1)) union(found[0], i, `manual: ${note}`);
   }
 
+  // An animated and a static image are never the same template, however alike
+  // they look: each group is split by animation, keeping the most popular
+  // member of each part as its root, and the parts are recorded as variants.
+  const roots = items.map((_, i) => find(i));
+  const parts = new Map<string, number[]>();
+  roots.forEach((root, i) => {
+    const key = `${root} ${isVideo(items[i].file)}`;
+    parts.set(key, [...(parts.get(key) ?? []), i]);
+  });
+  const splitPairs: [number, number][] = [];
+  const partRoots = new Map<number, number[]>();
+  for (const [key, members] of parts) {
+    const top = members.reduce((a, b) => (items[b].rank < items[a].rank ? b : a));
+    for (const i of members) parent[i] = top;
+    const root = Number(key.split(' ')[0]);
+    partRoots.set(root, [...(partRoots.get(root) ?? []), top]);
+  }
+  for (const tops of partRoots.values()) {
+    for (const top of tops.slice(1)) {
+      splitPairs.push([tops[0], top]);
+      items[top].reason = 'animated/static split';
+    }
+  }
+
   const groups = new Map<number, Item[]>();
   items.forEach((it, i) => {
     const root = find(i);
@@ -320,6 +347,7 @@ async function main(): Promise<void> {
     }
   };
   for (const { i, j, why } of variantPairs) relate(i, j, why);
+  for (const [i, j] of splitPairs) relate(i, j, 'animated');
   // Only the kept names: aliases are often loose descriptions.
   const named = [...groups].map(([root, members]) => ({
     root,
@@ -346,10 +374,7 @@ async function main(): Promise<void> {
   for (const [root, members] of groups) {
     members.sort((a, b) => a.rank - b.rank);
     const canonical = members[0];
-    const animated = isVideo(canonical.file);
-    const best = members
-      .filter((m) => isVideo(m.file) === animated)
-      .reduce((m, x) => (x.area > m.area ? x : m));
+    const best = members.reduce((m, x) => (x.area > m.area ? x : m));
 
     let slug = slugify(canonical.name);
     for (let n = 2; usedSlugs.has(slug); n++) slug = `${slugify(canonical.name)}-${n}`;
@@ -475,7 +500,7 @@ figure.best :is(img,video){outline:3px solid #4ade80}
 figcaption{font-size:12px;color:#aaa}figcaption i{color:#777}
 </style>
 <h1>${groups.length} duplicate groups</h1>
-<p>Green outline = file kept (most pixels, animated or not like the most popular member).
+<p>Green outline = file kept (most pixels). Groups never mix animated and static images.
 Name kept = lowest rank. Italic = why the image joined the group.</p>
 ${rows}
 <h1>${variants.length} variant pairs</h1>
