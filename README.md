@@ -24,8 +24,10 @@ npm run dedupe          # remove duplicates → data/templates/ (+ index.json)
   names as `aliases`, and writes a `.poster.jpg` still for animated templates.
   Review merged groups in `data/duplicates.html`.
   The other members' files are kept too, as the template's `duplicates`.
+  An animated and a static image are never duplicates: they're split into two
+  templates that are each other's `variants`.
 - Related templates that aren't duplicates become each other's `variants`: one is
-  some of the other's panels (3 vs 4 panels), their pictures share a layout but
+  animated and the other not, one is some of the other's panels (3 vs 4 panels), their pictures share a layout but
   differ (recoloured…), or one name's words are all in the other's
   ("Three-headed Dragon" / "4 headed dragon"). They're listed in `data/duplicates.html` too.
 - Duplicates the comparison misses (swapped panels, collages…) go under `same` in

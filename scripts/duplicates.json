@@ -8,10 +8,6 @@
       "note": "Anakin Padme 4 panel: panels cropped differently",
       "ids": ["5bgun8", "5cdn3n"]
     },
-    {
-      "note": "Disappearing kid: static collage of the animation",
-      "ids": ["3ohapu", "1h2kbp"]
-    },
     { "note": "Epic Handshake: Black White Arms", "ids": ["28j0te", "2gycra"] },
     { "note": "Marked safe from: bigger version", "ids": ["2odckz", "7qpayf"] },
     { "note": "Change my mind: tilt corrected", "ids": ["24y43o", "4t85g9"] },
@@ -52,6 +48,7 @@
     { "note": "Epic Handshake Three Way is a variant of Epic Handshake", "ids": ["3897bm", "2gycra"] }
   ],
   "variants": [
+    { "note": "Disappearing kid: static collage of the animation", "ids": ["3ohapu", "1h2kbp"] },
     {
       "note": "Malicious Advice Mallard is the red variant of Actual Advice Mallard",
       "ids": ["t2sg", "y7d3"]
