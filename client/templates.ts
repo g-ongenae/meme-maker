@@ -17,7 +17,20 @@ export interface Template {
   source: { site: string; id: string; pageUrl: string };
   /** Names of the duplicates merged into this template. */
   aliases: string[];
+  /**
+   * The other files of the duplicates merged into this template (other crops,
+   * framings, resolutions, a still of an animated one…), most popular first.
+   */
+  duplicates?: Duplicate[];
+  /** Ids of related but different templates (3 vs 4 panels, recoloured…), most popular first. */
+  variants?: string[];
 }
+
+/** A duplicate's own file, kept as an alternative format of its template. */
+export type Duplicate = Pick<
+  Template,
+  'name' | 'file' | 'poster' | 'animated' | 'width' | 'height' | 'rank' | 'source'
+>;
 
 /** Lower-cases and strips accents, so searches ignore both. */
 export const fold = (s: string): string =>
@@ -29,9 +42,12 @@ export const fold = (s: string): string =>
 /** Splits a search query into folded words. */
 export const searchWords = (query: string): string[] => fold(query).split(/\s+/).filter(Boolean);
 
-export const imgUrl = (t: Template): string => `/img/${encodeURIComponent(t.file)}`;
+/** A template or one of its duplicates: something with a file to show. */
+export type Media = Pick<Template, 'file' | 'poster'>;
+
+export const imgUrl = (t: Media): string => `/img/${encodeURIComponent(t.file)}`;
 // Animated templates are .mp4 files: their thumbnail comes from the poster.
-export const thumbUrl = (t: Template): string => `/thumb/${encodeURIComponent(t.poster ?? t.file)}`;
+export const thumbUrl = (t: Media): string => `/thumb/${encodeURIComponent(t.poster ?? t.file)}`;
 
 export const SORTS = {
   rank: (a: Template, b: Template) => a.rank - b.rank,

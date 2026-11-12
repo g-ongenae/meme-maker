@@ -48,6 +48,29 @@
         <button id="prev" type="button" aria-label="Previous template">‹</button>
         <button id="next" type="button" aria-label="Next template">›</button>
       </div>
+      <aside id="related" aria-labelledby="relatedTitle" hidden>
+        <div class="related-head">
+          <h3 id="relatedTitle">Alternatives</h3>
+          <button
+            id="relatedClose"
+            type="button"
+            aria-label="Hide alternatives"
+            title="Hide alternatives (A)"
+          >
+            ✕
+          </button>
+        </div>
+        <label class="switch"><input id="showDuplicates" type="checkbox" /> Show duplicates</label>
+        <section id="formats">
+          <h4>Formats</h4>
+          <ul id="formatList"></ul>
+        </section>
+        <section id="variations">
+          <h4>Variations</h4>
+          <ul id="variationList"></ul>
+        </section>
+        <p id="relatedEmpty">Only duplicates here: turn on “Show duplicates” to see them.</p>
+      </aside>
       <div class="info">
         <div>
           <h2 id="title"></h2>
@@ -55,6 +78,15 @@
           <p id="aliases"></p>
         </div>
         <div class="actions">
+          <button
+            id="relatedToggle"
+            type="button"
+            aria-controls="related"
+            aria-expanded="false"
+            title="Show or hide alternatives (A)"
+          >
+            Alternatives <span id="relatedCount"></span>
+          </button>
           <a id="open" target="_blank" rel="noopener">Open original</a>
           <a id="download">Download</a>
           <a id="source" target="_blank" rel="noopener">View on imgflip</a>

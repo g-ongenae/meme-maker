@@ -11,8 +11,10 @@ import {
   histOverlap,
   panelSubset,
   popcount,
+  regionOf,
   resample,
   sameImage,
+  similarImage,
   slugify,
   trimBox,
 } from './features.ts';
@@ -157,6 +159,39 @@ describe('cropOf', () => {
     const a = image(120, 90, pattern);
     const b = image(120, 90, (x, y) => pattern(y * 2, x * 3));
     assert.equal(cropOf(comparable('a', a, 120, 90), comparable('b', b, 120, 90)), null);
+  });
+});
+
+describe('regionOf', () => {
+  it('reports a subset of panels as such', () => {
+    // Four stacked panels; the first three make up the smaller image.
+    const panel = (x: number, y: number): Rgb => pattern(x, y + Math.floor(y / 40) * 57);
+    const four = image(120, 160, panel);
+    const three = image(120, 120, panel);
+    const m = regionOf(comparable('three', three, 120, 120), comparable('four', four, 120, 160));
+    assert.equal(m?.panels, true);
+    assert.equal(cropOf(comparable('three', three, 120, 120), comparable('four', four, 120, 160)), null);
+  });
+});
+
+describe('similarImage', () => {
+  const px = image(120, 90, pattern);
+
+  it('matches a recoloured copy that is not a duplicate', () => {
+    // Same luminance structure, colours tinted: too far apart to be the same image.
+    const tinted = image(120, 90, (x, y) => {
+      const [r, g, b] = pattern(x, y);
+      return [Math.min(255, r + 90), g, Math.max(0, b - 90)];
+    });
+    const a = comparable('a', px, 120, 90);
+    const b = comparable('b', tinted, 120, 90);
+    assert.equal(sameImage(a, b, 6), null);
+    assert.match(similarImage(a, b) ?? '', /^similar \(dHash \d+ bits, r (0\.9\d|1\.00)\)$/);
+  });
+
+  it('does not match different pictures', () => {
+    const other = image(120, 90, (x, y) => pattern(y * 2, x * 3));
+    assert.equal(similarImage(comparable('a', px, 120, 90), comparable('b', other, 120, 90)), null);
   });
 });
 

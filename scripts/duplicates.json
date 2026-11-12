@@ -22,5 +22,29 @@
       "note": "Malicious Advice Mallard is the red variant of Actual Advice Mallard",
       "ids": ["t2sg", "y7d3"]
     }
+  ],
+  "variants": [
+    {
+      "note": "Malicious Advice Mallard is the red variant of Actual Advice Mallard",
+      "ids": ["t2sg", "y7d3"]
+    },
+    {
+      "note": "Sign won't stop me: DW and Ralph versions",
+      "ids": ["2g28p6", "3aejj7"]
+    },
+    {
+      "note": "Train hitting a school bus: two framings",
+      "ids": ["434i5j", "485y4p"]
+    }
+  ],
+  "unrelated": [
+    {
+      "note": "Plain coloured backgrounds",
+      "ids": ["1bhh", "29rwg"]
+    },
+    {
+      "note": "Low-contrast close-ups",
+      "ids": ["34uws", "4n96w"]
+    }
   ]
 }
