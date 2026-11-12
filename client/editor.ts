@@ -26,8 +26,8 @@ import { type Category, categoryOf } from './categories.ts';
 import { $ } from './dom.ts';
 import { type Template, imgUrl, thumbUrl } from './templates.ts';
 
-// Library templates offered to put on top: faces, characters…
-const LIBRARY: Category = 'additions';
+// Library images offered to put on top: the characters cut out of templates.
+const LIBRARY: Category = 'characters';
 
 // Colours offered when adding one to a palette, the first not in it yet.
 const SUGGESTED = ['#ffffff', '#000000', '#ee1122', '#ffcc11', '#11bbbb', '#2d4fa3', '#ff8a92', '#449a3a'];

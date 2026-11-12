@@ -25,6 +25,10 @@ describe('categoryOf', () => {
     assert.equal(categoryOf(template({ id: 'blank-comic-panel-2x2' })), 'format');
   });
 
+  it('puts characters in characters', () => {
+    assert.equal(categoryOf(template({ id: 'characters/advice-dog', cutFrom: 'advice-dog' })), 'characters');
+  });
+
   it('defaults to complete', () => {
     assert.equal(categoryOf(template({})), 'complete');
   });
@@ -33,6 +37,8 @@ describe('categoryOf', () => {
 describe('isCategory', () => {
   it('validates category keys', () => {
     assert.ok(isCategory('format'));
+    assert.ok(isCategory('characters'));
+    assert.ok(!isCategory('additions'));
     assert.ok(!isCategory('toString'));
     assert.ok(!isCategory(null));
   });

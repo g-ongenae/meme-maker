@@ -62,13 +62,15 @@ describe('createApp', () => {
   let server: Server;
   let base: string;
   const index = [{ id: 'drake', name: 'Drake' }];
+  const characters = [{ id: 'dog', name: 'Dog', file: 'dog.png', template: 'drake' }];
   const video = Buffer.from('0123456789abcdef');
 
   before(async () => {
     root = await mkdtemp(path.join(tmpdir(), 'meme-maker-'));
     const templates = path.join(root, 'data/templates');
+    const charactersDir = path.join(root, 'data/characters');
     await Promise.all(
-      ['public', 'assets', 'dist/client', 'data/templates'].map((d) =>
+      ['public', 'assets', 'dist/client', 'data/templates', 'data/characters'].map((d) =>
         mkdir(path.join(root, d), { recursive: true }),
       ),
     );
@@ -82,6 +84,10 @@ describe('createApp', () => {
       sharp({ create: { width: 800, height: 600, channels: 3, background: '#e11d48' } })
         .jpeg()
         .toFile(path.join(templates, 'drake.jpg')),
+      writeFile(path.join(charactersDir, 'index.json'), JSON.stringify(characters)),
+      sharp({ create: { width: 600, height: 800, channels: 4, background: '#0000' } })
+        .png()
+        .toFile(path.join(charactersDir, 'dog.png')),
     ]);
 
     const handle = createApp({ root, sharp: Promise.resolve(sharp) });
@@ -117,8 +123,37 @@ describe('createApp', () => {
     assert.deepEqual(await res.json(), index);
   });
 
+  it('serves the character index', async () => {
+    const res = await get('/api/characters');
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), characters);
+  });
+
+  it('serves characters and their transparent thumbnails', async () => {
+    const img = await get('/img/characters/dog.png');
+    assert.equal(img.status, 200);
+    assert.equal(img.headers.get('content-type'), 'image/png');
+    await img.arrayBuffer();
+
+    const thumb = await get('/thumb/characters/dog.png');
+    assert.equal(thumb.status, 200);
+    const meta = await sharp(Buffer.from(await thumb.arrayBuffer())).metadata();
+    assert.deepEqual([meta.format, meta.width, meta.height, meta.hasAlpha], ['webp', 300, 400, true]);
+    const cached = await sharp(path.join(root, 'data/thumbs/characters/dog.png.webp')).metadata();
+    assert.equal(cached.height, 400);
+  });
+
   it('answers 404 for unknown files and routes', async () => {
-    for (const url of ['/js/missing.js', '/js/../app.ts', '/img/missing.jpg', '/img/index.json', '/nope']) {
+    for (const url of [
+      '/js/missing.js',
+      '/js/../app.ts',
+      '/img/missing.jpg',
+      '/img/index.json',
+      '/img/characters/drake.jpg',
+      '/img/characters/index.json',
+      '/img/other/drake.jpg',
+      '/nope',
+    ]) {
       const res = await get(url);
       assert.equal(res.status, 404, url);
       await res.arrayBuffer();
