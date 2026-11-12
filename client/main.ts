@@ -1,7 +1,10 @@
-// Template browser: grid with search, category filter and sort, plus a viewer dialog.
+// Template browser: grid with search, category filter and sort, plus a viewer
+// dialog with a side panel of alternatives: the template's other formats (the
+// duplicates merged into it) and its variations (related templates).
 
 import { type Category, CATEGORIES, categoryOf, isCategory } from './categories.ts';
 import {
+  type Duplicate,
   type SearchKeys,
   type SortKey,
   type Template,
@@ -35,6 +38,36 @@ const aliasesEl = $<HTMLParagraphElement>('aliases');
 const openLink = $<HTMLAnchorElement>('open');
 const downloadLink = $<HTMLAnchorElement>('download');
 const sourceLink = $<HTMLAnchorElement>('source');
+const related = $('related');
+const relatedToggle = $<HTMLButtonElement>('relatedToggle');
+const relatedCount = $('relatedCount');
+const showDuplicates = $<HTMLInputElement>('showDuplicates');
+const formats = $('formats');
+const formatList = $<HTMLUListElement>('formatList');
+const variations = $('variations');
+const variationList = $<HTMLUListElement>('variationList');
+const relatedEmpty = $('relatedEmpty');
+
+// Viewer preferences, remembered across visits (storage can be unavailable).
+const prefs = {
+  get(key: string, fallback: boolean): boolean {
+    try {
+      const v = localStorage.getItem(`meme-maker.${key}`);
+      return v === null ? fallback : v === '1';
+    } catch {
+      return fallback;
+    }
+  },
+  set(key: string, value: boolean): void {
+    try {
+      localStorage.setItem(`meme-maker.${key}`, value ? '1' : '0');
+    } catch {
+      // not persisted
+    }
+  },
+};
+let panelOpen = prefs.get('alternatives', true);
+showDuplicates.checked = prefs.get('duplicates', true);
 
 const fmt = new Intl.NumberFormat('en');
 
@@ -47,8 +80,10 @@ interface Card {
 }
 
 let cards: Card[] = [];
+let byId = new Map<string, Card>();
 let visible: Card[] = []; // cards currently shown, in display order
 let current: Card | null = null; // card open in the viewer
+let shown: Duplicate | null = null; // file shown in the viewer: the template's or a duplicate's
 
 function buildCard(t: Template): Card {
   const li = document.createElement('li');
@@ -137,9 +172,9 @@ function setHash(id: string): void {
   history.replaceState(null, '', location.pathname + location.search + (id ? `#${id}` : ''));
 }
 
-function show(card: Card): void {
-  const t = card.template;
-  current = card;
+// Shows a file of the current template in the stage: its own, or one of its
+// duplicates'.
+function display(card: Card, t: Duplicate): void {
   big.hidden = !!t.animated;
   bigVideo.hidden = !t.animated;
   for (const el of [big, bigVideo]) {
@@ -159,21 +194,111 @@ function show(card: Card): void {
     big.alt = t.name;
     const full = new Image();
     full.onload = () => {
-      if (current === card) big.src = full.src;
+      if (current === card && shown === t) big.src = full.src;
     };
     full.src = imgUrl(t);
   }
+  shown = t;
 
-  $('title').textContent = t.name;
+  const own = t === card.template;
   $('meta').textContent =
+    (own ? '' : `Duplicate “${t.name}” · `) +
     `#${t.rank} on ${t.source.site} · ${t.width} × ${t.height} · ${t.file.split('.').pop()?.toUpperCase()}` +
     (t.animated ? ' · animated' : '');
-  aliasesEl.textContent = t.aliases.length ? `Also known as: ${t.aliases.join(', ')}` : '';
-  aliasesEl.hidden = !t.aliases.length;
   openLink.href = imgUrl(t);
   downloadLink.href = imgUrl(t);
   downloadLink.download = t.file;
   sourceLink.href = t.source.pageUrl;
+  for (const li of formatList.children) {
+    const button = li.firstElementChild;
+    if (button instanceof HTMLElement) button.ariaCurrent = button.dataset.file === t.file ? 'true' : null;
+  }
+}
+
+function relatedItem(media: Duplicate, label: string, detail: string): HTMLLIElement {
+  const li = document.createElement('li');
+  const img = document.createElement('img');
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.alt = '';
+  img.src = thumbUrl(media);
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = label;
+  const small = document.createElement('small');
+  small.textContent = detail;
+  li.append(img, name, small);
+  return li;
+}
+
+const size = (t: Duplicate) => `${t.width} × ${t.height}${t.animated ? ' · GIF' : ''}`;
+
+// Fills the alternatives panel for a template.
+function renderRelated(card: Card): void {
+  const t = card.template;
+  const duplicates = t.duplicates ?? [];
+  const variants = (t.variants ?? []).flatMap((id) => byId.get(id) ?? []);
+  const withDuplicates = showDuplicates.checked && duplicates.length > 0;
+
+  formatList.replaceChildren(
+    ...(withDuplicates ? [t, ...duplicates] : []).map((d) => {
+      const li = relatedItem(d, d === t ? 'Main' : d.name, size(d));
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.file = d.file;
+      button.title = d === t ? t.name : `${d.name} (#${d.rank})`;
+      button.append(...li.childNodes);
+      li.append(button);
+      return li;
+    }),
+  );
+  variationList.replaceChildren(
+    ...variants.map((v) => {
+      const li = relatedItem(v.template, v.template.name, size(v.template));
+      const a = document.createElement('a');
+      a.href = `#${v.template.id}`;
+      a.title = v.template.name;
+      a.append(...li.childNodes);
+      li.append(a);
+      return li;
+    }),
+  );
+  formats.hidden = !withDuplicates;
+  variations.hidden = !variants.length;
+  relatedEmpty.hidden = withDuplicates || variants.length > 0;
+  showDuplicates.parentElement!.hidden = !duplicates.length;
+
+  // The panel is offered whenever there is something to show in it, so the
+  // duplicates switch stays reachable when it is off.
+  const available = duplicates.length + variants.length > 0;
+  const n = (withDuplicates ? duplicates.length : 0) + variants.length;
+  relatedToggle.hidden = !available;
+  relatedCount.textContent = n ? `(${n})` : '';
+  setPanel(panelOpen, available);
+}
+
+function setPanel(open: boolean, available = !relatedToggle.hidden): void {
+  related.hidden = !(open && available);
+  relatedToggle.ariaExpanded = String(open && available);
+  relatedToggle.ariaPressed = String(open && available);
+}
+
+function togglePanel(): void {
+  if (relatedToggle.hidden) return;
+  panelOpen = related.hidden === true;
+  prefs.set('alternatives', panelOpen);
+  setPanel(panelOpen);
+}
+
+function show(card: Card): void {
+  const t = card.template;
+  current = card;
+  $('title').textContent = t.name;
+  aliasesEl.textContent = t.aliases.length ? `Also known as: ${t.aliases.join(', ')}` : '';
+  aliasesEl.hidden = !t.aliases.length;
+  renderRelated(card);
+  display(card, t);
+  related.scrollTop = 0;
 
   const many = visible.length > 1 && visible.includes(card);
   prev.hidden = next.hidden = !many;
@@ -190,7 +315,7 @@ function step(delta: number): void {
 
 function openFromHash(): void {
   const id = decodeURIComponent(location.hash.slice(1));
-  const card = id ? cards.find((c) => c.template.id === id) : undefined;
+  const card = id ? byId.get(id) : undefined;
   if (card) show(card);
   else if (viewer.open) viewer.close();
 }
@@ -203,6 +328,29 @@ grid.addEventListener('click', (e) => {
   if (card) show(card);
 });
 $('close').addEventListener('click', () => viewer.close());
+relatedToggle.addEventListener('click', togglePanel);
+$('relatedClose').addEventListener('click', togglePanel);
+showDuplicates.addEventListener('change', () => {
+  prefs.set('duplicates', showDuplicates.checked);
+  if (!current) return;
+  renderRelated(current);
+  // A duplicate on show goes back to the template's own file when hidden.
+  display(current, showDuplicates.checked && shown ? shown : current.template);
+});
+formatList.addEventListener('click', (e) => {
+  const button = (e.target as Element).closest<HTMLElement>('button[data-file]');
+  const t = current?.template;
+  if (!button || !current || !t) return;
+  const file = button.dataset.file;
+  display(current, [t, ...(t.duplicates ?? [])].find((d) => d.file === file) ?? t);
+});
+variationList.addEventListener('click', (e) => {
+  const link = (e.target as Element).closest('a');
+  if (!link || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+  e.preventDefault();
+  const card = byId.get(decodeURIComponent(link.hash.slice(1)));
+  if (card) show(card);
+});
 prev.addEventListener('click', () => step(-1));
 next.addEventListener('click', () => step(1));
 viewer.addEventListener('click', (e) => {
@@ -210,14 +358,17 @@ viewer.addEventListener('click', (e) => {
 });
 viewer.addEventListener('close', () => {
   current = null;
+  shown = null;
   big.removeAttribute('src');
   bigVideo.removeAttribute('src');
   bigVideo.load();
   setHash('');
 });
 viewer.addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLInputElement) return;
   if (e.key === 'ArrowLeft') step(-1);
   else if (e.key === 'ArrowRight') step(1);
+  else if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey && !e.altKey) togglePanel();
 });
 window.addEventListener('hashchange', openFromHash);
 document.addEventListener('keydown', (e) => {
@@ -239,6 +390,7 @@ async function init(): Promise<void> {
     return;
   }
   cards = ((await res.json()) as Template[]).map(buildCard);
+  byId = new Map(cards.map((c) => [c.template.id, c]));
   fillCategories();
 
   const params = new URLSearchParams(location.search);

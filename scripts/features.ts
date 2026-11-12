@@ -11,6 +11,8 @@ export const MIN_NCC = 0.9;
 export const MIN_CROP_AREA = 0.4;
 export const CROP_THRESHOLD = 10; // dHash bits, on the aligned region
 export const CROP_MAX_COLOR_DISTANCE = 20;
+export const VARIANT_THRESHOLD = 12; // dHash bits, see similarImage()
+export const MIN_VARIANT_CORRELATION = 0.7;
 const MAX_PANEL_ROWS_AREA = 0.8; // see panelSubset()
 const MAX_PANEL_COLUMNS_AREA = 0.6;
 
@@ -282,15 +284,63 @@ export function sameImage(a: Comparable, b: Comparable, threshold: number): 'ide
   return same ? 'same' : null;
 }
 
-// Whether `a` is a crop of `b`, checked on the region the correlation aligned.
-export function cropOf(a: Comparable, b: Comparable): string | null {
+export interface RegionMatch {
+  /** The match is a subset of b's panels rather than a crop: a variant, not a duplicate. */
+  panels: boolean;
+  why: string;
+}
+
+// Whether `a` is found inside `b`, checked on the region the correlation
+// aligned: as a crop (a duplicate) or as some of b's panels (a variant, e.g.
+// the 3-panel version of a 4-panel meme).
+export function regionOf(a: Comparable, b: Comparable): RegionMatch | null {
   const m = findInside(a.features, b.features);
-  if (!isRegion(m) || m.score < MIN_NCC || panelSubset(b.features, m)) return null;
+  if (!isRegion(m) || m.score < MIN_NCC) return null;
   const region = describe(b.features, m.x0, m.y0, m.x1, m.y1);
   const ok =
     popcount(a.hash ^ region.hash) <= CROP_THRESHOLD &&
     colorDistance(a.thumb, region.thumb) <= CROP_MAX_COLOR_DISTANCE;
-  return ok ? `crop (${Math.round(m.area * 100)}% of ${b.name}, ncc ${m.score.toFixed(2)})` : null;
+  if (!ok) return null;
+  const panels = panelSubset(b.features, m);
+  return {
+    panels,
+    why: `${panels ? 'panels' : 'crop'} (${Math.round(m.area * 100)}% of ${b.name}, ncc ${m.score.toFixed(2)})`,
+  };
+}
+
+// Whether `a` is a crop of `b`.
+export function cropOf(a: Comparable, b: Comparable): string | null {
+  const m = regionOf(a, b);
+  return m && !m.panels ? m.why : null;
+}
+
+// Pearson correlation of two images' grayscale, both resampled to 24×24.
+export function correlation(a: Features, b: Features): number {
+  const n = 24;
+  const x = resample(a.gray, a.w, 1, 0, 0, a.w, a.h, n, n);
+  const y = resample(b.gray, b.w, 1, 0, 0, b.w, b.h, n, n);
+  const mean = (v: Float32Array) => v.reduce((s, p) => s + p, 0) / v.length;
+  const [mx, my] = [mean(x), mean(y)];
+  let xy = 0;
+  let xx = 0;
+  let yy = 0;
+  for (let i = 0; i < x.length; i++) {
+    xy += (x[i] - mx) * (y[i] - my);
+    xx += (x[i] - mx) ** 2;
+    yy += (y[i] - my) ** 2;
+  }
+  // Flat images (std < 5) have no structure to compare.
+  return xx < x.length * 25 || yy < y.length * 25 ? 0 : xy / Math.sqrt(xx * yy);
+}
+
+// Whether `a` and `b` are variants of one picture that are too different to be
+// duplicates: same layout (close perceptual hashes, similar aspect ratios and
+// correlated grayscale) but, say, recoloured or with an element changed.
+export function similarImage(a: Comparable, b: Comparable): string | null {
+  const bits = popcount(a.hash ^ b.hash);
+  if (bits > VARIANT_THRESHOLD || Math.abs(a.aspect - b.aspect) / a.aspect >= 0.15) return null;
+  const r = correlation(a.features, b.features);
+  return r >= MIN_VARIANT_CORRELATION ? `similar (dHash ${bits} bits, r ${r.toFixed(2)})` : null;
 }
 
 export const slugify = (s: string): string =>

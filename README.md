@@ -23,8 +23,14 @@ npm run dedupe          # remove duplicates → data/templates/ (+ index.json)
   keeps the most popular name and the highest-resolution file, records the other
   names as `aliases`, and writes a `.poster.jpg` still for animated templates.
   Review merged groups in `data/duplicates.html`.
+  The other members' files are kept too, as the template's `duplicates`.
+- Related templates that aren't duplicates become each other's `variants`: one is
+  some of the other's panels (3 vs 4 panels), their pictures share a layout but
+  differ (recoloured…), or one name's words are all in the other's
+  ("Three-headed Dragon" / "4 headed dragon"). They're listed in `data/duplicates.html` too.
 - Duplicates the comparison misses (swapped panels, collages…) go under `same` in
   `scripts/duplicates.json`, and false matches under `different`, by imgflip id.
+  Likewise, missed variants go under `variants` and false ones under `unrelated`.
   `npm run dedupe -- --explain <id>,<id>` shows why two images match or not.
 - Frames are read from videos with the ffmpeg binary from `ffmpeg-static` (set
   `FFMPEG` to use another one).
@@ -37,7 +43,9 @@ npm start               # builds the client, then http://127.0.0.1:4321 (overrid
 
 A dependency-free Node server (`server/`) serving the page in `public/` (`index.html`
 and `style.css`) and its script, compiled from `client/` to `dist/client/`, to search,
-sort and view the templates in `data/templates/`. Thumbnails are rendered on demand
+sort and view the templates in `data/templates/`. The viewer's alternatives panel
+(button or <kbd>A</kbd>) lists the template's other formats (its duplicates, which a
+switch can hide) and its variations. Thumbnails are rendered on demand
 with sharp and cached in `data/thumbs/`.
 
 The category menu filters the list: GIFs (animated templates), Complete (every

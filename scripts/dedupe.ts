@@ -16,7 +16,19 @@
 //               are never matched automatically.
 // In each group the most popular template (lowest imgflip rank) keeps its name.
 // The file kept is the one with the most pixels, among the members that are
-// animated (or static) like that most popular one.
+// animated (or static) like that most popular one; the other members' files
+// are kept too, as the template's `duplicates` (alternative formats).
+//
+// Templates that are related but not duplicates are recorded as each other's
+// `variants` when:
+//   - "panels":  one is some of the other's panels (3 vs 4 panels);
+//   - "similar": their perceptual hashes are close and their aspect ratios
+//                similar, but not close enough to be duplicates (recoloured…);
+//   - "name":    the distinctive words of one's name are all in the other's
+//                ("Three-headed Dragon" / "4 headed dragon");
+//   - "manual":  they are listed together under "variants" in
+//                scripts/duplicates.json. Pairs listed under "unrelated" are
+//                never variants.
 //
 // Usage: npm run dedupe -- [--threshold 6]
 //        npm run dedupe -- --explain <imgflip id>,<imgflip id>   (why two images do or do not match)
@@ -28,8 +40,9 @@ import { createRequire } from 'node:module';
 import { promisify, parseArgs } from 'node:util';
 import path from 'node:path';
 import sharp from 'sharp';
-import type { Template } from '../client/templates.ts';
+import type { Duplicate, Template } from '../client/templates.ts';
 import type { RawTemplate } from './imgflip.ts';
+import { nameWords, similarNames } from './names.ts';
 import {
   type Comparable,
   CROP_MAX_COLOR_DISTANCE,
@@ -40,6 +53,8 @@ import {
   colorDistance,
   cropOf,
   describe,
+  regionOf,
+  similarImage,
   extractFeatures,
   findInside,
   histOverlap,
@@ -67,6 +82,8 @@ interface ManualGroup {
 interface Manual {
   same: ManualGroup[];
   different: ManualGroup[];
+  variants?: ManualGroup[];
+  unrelated?: ManualGroup[];
 }
 
 type Downloaded = RawTemplate & { file: string };
@@ -170,11 +187,17 @@ function explain(a: Item, b: Item, manual: Manual): void {
     }
     console.log(line);
   }
-  const listed = (['same', 'different'] as const).find((k) =>
-    manual[k].some(({ ids }) => ids.includes(a.id) && ids.includes(b.id)),
+  const listed = (['same', 'different', 'variants', 'unrelated'] as const).find((k) =>
+    manual[k]?.some(({ ids }) => ids.includes(a.id) && ids.includes(b.id)),
   );
   if (listed) console.log(`  listed as "${listed}" in ${path.basename(MANUAL_FILE)}`);
-  console.log(`  → ${sameImage(a, b, THRESHOLD) ?? cropOf(a, b) ?? cropOf(b, a) ?? 'not duplicates'}`);
+  const variant =
+    [regionOf(a, b), regionOf(b, a)].find((m) => m?.panels)?.why ??
+    similarImage(a, b) ??
+    (similarNames(nameWords(a.name), nameWords(b.name)) ? 'name' : null);
+  console.log(
+    `  → ${sameImage(a, b, THRESHOLD) ?? cropOf(a, b) ?? cropOf(b, a) ?? (variant ? `variant: ${variant}` : 'not related')}`,
+  );
 }
 
 async function main(): Promise<void> {
@@ -182,16 +205,19 @@ async function main(): Promise<void> {
   const index = raw.filter((t): t is Downloaded => !!t.file && !t.error);
   const manual = JSON.parse(await readFile(MANUAL_FILE, 'utf8')) as Manual;
   const known = new Set(index.map((t) => t.id));
-  for (const { ids } of [...manual.same, ...manual.different]) {
+  manual.variants ??= [];
+  manual.unrelated ??= [];
+  for (const { ids } of [...manual.same, ...manual.different, ...manual.variants, ...manual.unrelated]) {
     for (const id of ids) {
       if (!known.has(id)) console.warn(`${path.basename(MANUAL_FILE)}: unknown imgflip id ${id}`);
     }
   }
   // Pairs listed together under "different" are never matched automatically.
   const pairKey = (a: string, b: string) => (a < b ? `${a} ${b}` : `${b} ${a}`);
-  const different = new Set(
-    manual.different.flatMap(({ ids }) => ids.flatMap((a, i) => ids.slice(i + 1).map((b) => pairKey(a, b)))),
-  );
+  const pairs = (groups: ManualGroup[]) =>
+    new Set(groups.flatMap(({ ids }) => ids.flatMap((a, i) => ids.slice(i + 1).map((b) => pairKey(a, b)))));
+  const different = pairs(manual.different);
+  const unrelated = pairs(manual.unrelated);
 
   if (EXPLAIN) {
     const [a, b] = await Promise.all(
@@ -230,6 +256,9 @@ async function main(): Promise<void> {
     items[i].reason ??= why;
   };
 
+  // Variants found between items, resolved to groups once those are known.
+  const variantPairs: { i: number; j: number; why: string }[] = [];
+
   // n≈2k → ~2M pairs: the cheap comparisons run on all of them, the crop
   // search only on pairs whose colours are similar enough.
   const candidates: [number, number][] = [];
@@ -237,8 +266,13 @@ async function main(): Promise<void> {
     for (let j = i + 1; j < items.length; j++) {
       if (different.has(pairKey(items[i].id, items[j].id))) continue;
       const why = sameImage(items[i], items[j], THRESHOLD);
-      if (why) union(i, j, `${why} as ${items[i].name}`);
-      else if (histOverlap(items[i].features.hist, items[j].features.hist) >= MIN_HIST_OVERLAP) {
+      if (why) {
+        union(i, j, `${why} as ${items[i].name}`);
+        continue;
+      }
+      const similar = similarImage(items[i], items[j]);
+      if (similar) variantPairs.push({ i, j, why: similar });
+      if (histOverlap(items[i].features.hist, items[j].features.hist) >= MIN_HIST_OVERLAP) {
         candidates.push([i, j]);
       }
     }
@@ -247,8 +281,13 @@ async function main(): Promise<void> {
   for (const [i, j] of candidates) {
     if (find(i) === find(j)) continue;
     const [small, big] = items[i].area <= items[j].area ? [i, j] : [j, i];
-    const why = cropOf(items[small], items[big]) ?? cropOf(items[big], items[small]);
-    if (why) union(i, j, why);
+    const matches = [regionOf(items[small], items[big]), regionOf(items[big], items[small])];
+    const crop = matches.find((m) => m && !m.panels);
+    if (crop) union(i, j, crop.why);
+    else {
+      const panels = matches.find((m) => m?.panels);
+      if (panels) variantPairs.push({ i, j, why: panels.why });
+    }
   }
 
   const byId = new Map(items.map((it, i) => [it.id, i]));
@@ -265,13 +304,46 @@ async function main(): Promise<void> {
     groups.set(root, group);
   });
 
+  // Variants, between groups: the pairs found above, the groups whose names
+  // match, and the manual list, less the pairs listed as unrelated.
+  const variants = new Map<number, Map<number, string>>();
+  const relate = (i: number, j: number, why: string) => {
+    const [a, b] = [find(i), find(j)];
+    if (a === b || unrelated.has(pairKey(items[i].id, items[j].id))) return;
+    for (const [x, y] of [
+      [a, b],
+      [b, a],
+    ]) {
+      const map = variants.get(x) ?? new Map<number, string>();
+      if (!map.has(y)) map.set(y, why);
+      variants.set(x, map);
+    }
+  };
+  for (const { i, j, why } of variantPairs) relate(i, j, why);
+  // Only the kept names: aliases are often loose descriptions.
+  const named = [...groups].map(([root, members]) => ({
+    root,
+    words: nameWords(members.reduce((a, b) => (b.rank < a.rank ? b : a)).name),
+  }));
+  for (let x = 0; x < named.length; x++) {
+    for (let y = x + 1; y < named.length; y++) {
+      if (similarNames(named[x].words, named[y].words)) relate(named[x].root, named[y].root, 'name');
+    }
+  }
+  for (const { ids, note } of manual.variants) {
+    const found = ids.flatMap((id) => byId.get(id) ?? []);
+    found.forEach((i, n) => found.slice(n + 1).forEach((j) => relate(i, j, `manual: ${note}`)));
+  }
+
   await rm(OUT_DIR, { recursive: true, force: true });
   await mkdir(OUT_DIR, { recursive: true });
 
   const usedSlugs = new Set<string>();
   const templates: Template[] = [];
+  const slugOf = new Map<number, string>();
+  const rootOf = new Map<string, number>();
   const dupGroups: DuplicateGroup[] = [];
-  for (const members of groups.values()) {
+  for (const [root, members] of groups) {
     members.sort((a, b) => a.rank - b.rank);
     const canonical = members[0];
     const animated = isVideo(canonical.file);
@@ -282,39 +354,78 @@ async function main(): Promise<void> {
     let slug = slugify(canonical.name);
     for (let n = 2; usedSlugs.has(slug); n++) slug = `${slugify(canonical.name)}-${n}`;
     usedSlugs.add(slug);
+    slugOf.set(root, slug);
+    rootOf.set(slug, root);
 
-    const file = `${slug}${path.extname(best.file)}`;
-    await copyFile(path.join(RAW_DIR, best.file), path.join(OUT_DIR, file));
-    // Animated templates get a still to show in grids and use as a poster.
-    let poster: string | undefined;
-    if (best.still) {
-      poster = `${slug}.poster.jpg`;
-      await sharp(best.still).jpeg({ quality: 90 }).toFile(path.join(OUT_DIR, poster));
-    }
+    // Every distinct file of the group is kept: the best one as the
+    // template's, the others (named after their imgflip id) as its duplicates.
+    const seen = new Set([best.sha256]);
+    const others = members.filter((m) => !seen.has(m.sha256) && seen.add(m.sha256));
+    const [main, ...duplicates] = await Promise.all(
+      [best, ...others].map((m) => keep(m, m === best ? slug : `${slug}.${m.id}`)),
+    );
 
     templates.push({
       id: slug,
+      ...main,
       name: canonical.name,
-      file,
-      ...(poster && { poster, animated: true as const }),
-      width: best.width,
-      height: best.height,
       rank: canonical.rank,
-      source: { site: 'imgflip', id: best.id, pageUrl: canonical.pageUrl },
+      source: { ...main.source, pageUrl: canonical.pageUrl },
       aliases: [...new Set(members.slice(1).map((m) => m.name))].filter((n) => n !== canonical.name),
+      ...(duplicates.length && { duplicates }),
     });
     if (members.length > 1) dupGroups.push({ keep: canonical, best, members });
   }
 
+  const rankOf = new Map(templates.map((t) => [t.id, t.rank]));
+  const variantRows: VariantRow[] = [];
+  for (const t of templates) {
+    const related = variants.get(rootOf.get(t.id) ?? -1);
+    if (!related?.size) continue;
+    const rows = [...related].map(([r, why]) => ({ id: slugOf.get(r) ?? '', why }));
+    rows.sort((a, b) => (rankOf.get(a.id) ?? 0) - (rankOf.get(b.id) ?? 0));
+    t.variants = rows.map((r) => r.id);
+    variantRows.push(
+      ...rows.filter((r) => t.rank < (rankOf.get(r.id) ?? 0)).map((r) => ({ a: t.id, b: r.id, why: r.why })),
+    );
+  }
+
   templates.sort((a, b) => a.rank - b.rank);
   await writeFile(path.join(OUT_DIR, 'index.json'), JSON.stringify(templates, null, 2));
-  await writeFile(path.resolve('data/duplicates.html'), renderReport(dupGroups));
+  await writeFile(path.resolve('data/duplicates.html'), renderReport(dupGroups, variantRows, templates));
 
   const removed = items.length - templates.length;
   console.log(
-    `${items.length} images → ${templates.length} templates (${removed} duplicates in ${dupGroups.length} groups)`,
+    `${items.length} images → ${templates.length} templates (${removed} duplicates in ${dupGroups.length} groups, ${variantRows.length} variant pairs)`,
   );
   console.log(`wrote ${OUT_DIR}/index.json and data/duplicates.html`);
+}
+
+// Copies an item's file to OUT_DIR as <stem>.<ext>, with a still of animated
+// ones (<stem>.poster.jpg) to show in grids and use as a poster.
+async function keep(m: Item, stem: string): Promise<Duplicate> {
+  const file = `${stem}${path.extname(m.file)}`;
+  await copyFile(path.join(RAW_DIR, m.file), path.join(OUT_DIR, file));
+  let poster: string | undefined;
+  if (m.still) {
+    poster = `${stem}.poster.jpg`;
+    await sharp(m.still).jpeg({ quality: 90 }).toFile(path.join(OUT_DIR, poster));
+  }
+  return {
+    name: m.name,
+    file,
+    ...(poster && { poster, animated: true as const }),
+    width: m.width,
+    height: m.height,
+    rank: m.rank,
+    source: { site: 'imgflip', id: m.id, pageUrl: m.pageUrl },
+  };
+}
+
+interface VariantRow {
+  a: string;
+  b: string;
+  why: string;
 }
 
 interface DuplicateGroup {
@@ -323,7 +434,7 @@ interface DuplicateGroup {
   members: Item[];
 }
 
-function renderReport(groups: DuplicateGroup[]): string {
+function renderReport(groups: DuplicateGroup[], variants: VariantRow[], templates: Template[]): string {
   const esc = (s: string | number) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
   const media = (m: Item) =>
     isVideo(m.file)
@@ -342,6 +453,17 @@ function renderReport(groups: DuplicateGroup[]): string {
           .join('')}</div></section>`,
     )
     .join('\n');
+  const byId = new Map(templates.map((t) => [t.id, t]));
+  const still = (id: string) => {
+    const t = byId.get(id);
+    return t
+      ? `<figure><img loading="lazy" src="templates/${esc(t.poster ?? t.file)}"><figcaption>#${t.rank} ${esc(t.name)}</figcaption></figure>`
+      : '';
+  };
+  const variantRows = variants
+    .sort((x, y) => x.why.localeCompare(y.why) || x.a.localeCompare(y.a))
+    .map((v) => `<section><h2><i>${esc(v.why)}</i></h2><div>${still(v.a)}${still(v.b)}</div></section>`)
+    .join('\n');
   return `<!doctype html><meta charset="utf-8"><title>Duplicate groups</title>
 <style>
 body{font:14px system-ui;margin:24px;background:#111;color:#eee}
@@ -355,7 +477,11 @@ figcaption{font-size:12px;color:#aaa}figcaption i{color:#777}
 <h1>${groups.length} duplicate groups</h1>
 <p>Green outline = file kept (most pixels, animated or not like the most popular member).
 Name kept = lowest rank. Italic = why the image joined the group.</p>
-${rows}`;
+${rows}
+<h1>${variants.length} variant pairs</h1>
+<p>Related templates that are not duplicates, shown as each other's variants.
+List false matches under <code>unrelated</code> in scripts/duplicates.json.</p>
+${variantRows}`;
 }
 
 main().catch((e: unknown) => {

@@ -195,14 +195,20 @@ dialog {
   color: var(--text);
   overflow: hidden;
 }
+/* The alternatives panel sits beside the stage, which takes the whole width
+   when the panel is hidden. */
 dialog[open] {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template:
+    'stage related' minmax(0, 1fr)
+    'info info' auto
+    / minmax(0, 1fr) auto;
 }
 dialog::backdrop {
   background: rgb(0 0 0 / 0.7);
 }
 .stage {
+  grid-area: stage;
   position: relative;
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
@@ -251,6 +257,7 @@ dialog::backdrop {
   right: 12px;
 }
 .info {
+  grid-area: info;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -279,18 +286,165 @@ dialog::backdrop {
   flex-wrap: wrap;
   gap: 8px;
 }
-.actions a {
+.actions :is(a, button) {
   padding: 7px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
+  background: none;
   color: inherit;
   font-size: 13.5px;
+  line-height: inherit;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
 }
-.actions a:hover {
+.actions :is(a, button):hover {
   border-color: var(--accent);
   color: var(--accent-text);
+}
+#relatedToggle[aria-expanded='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent-text);
+}
+
+#related {
+  grid-area: related;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 260px;
+  min-height: 0;
+  padding: 12px 12px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left: 1px solid var(--border);
+}
+.related-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#related h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+#relatedClose {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+}
+#relatedClose:hover {
+  background: var(--tile);
+  color: var(--text);
+}
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.switch input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+#related h4 {
+  margin: 4px 0 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#related ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#related li > :is(a, button) {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 0 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+#related li > :is(a, button):hover,
+#related li > [aria-current='true'] {
+  border-color: var(--accent);
+}
+#related li > [aria-current='true'] {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+#related li img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: var(--tile);
+}
+#related li .name,
+#related li small {
+  padding: 0 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#related li .name {
+  padding-top: 5px;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+#related li small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+#relatedEmpty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Narrow screens: the panel becomes a scrolling strip under the stage. */
+@media (max-width: 760px) {
+  dialog[open] {
+    grid-template:
+      'stage' minmax(0, 1fr)
+      'related' auto
+      'info' auto
+      / minmax(0, 1fr);
+  }
+  #related {
+    width: auto;
+    max-height: 210px;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  #related ul {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  }
 }
 @media (max-width: 560px) {
   header {
