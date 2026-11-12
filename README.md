@@ -10,6 +10,7 @@ Created in [T3 Code](https://t3.codes).
 npm install
 npm run fetch:imgflip   # scrape all pages of imgflip.com/memetemplates → data/raw/imgflip/
 npm run dedupe          # remove duplicates → data/templates/ (+ index.json)
+npm run extract:characters  # cut characters out of templates → data/characters/ (+ index.json)
 ```
 
 - `fetch:imgflip` downloads the full-size original of every template (falling back
@@ -36,6 +37,17 @@ npm run dedupe          # remove duplicates → data/templates/ (+ index.json)
   `npm run dedupe -- --explain <id>,<id>` shows why two images match or not.
 - Frames are read from videos with the ffmpeg binary from `ffmpeg-static` (set
   `FFMPEG` to use another one).
+- `extract:characters` cuts the character out of the "advice animal" style
+  templates listed in `scripts/characters.json` (a subject over sunburst slices
+  or another flat or geometric background) and saves it as a transparent PNG,
+  cropped to it, in `data/characters/`. Each entry of `data/characters/index.json`
+  has the character's `id`, `name`, `file`, size and the `template` it comes from.
+  Review them in `data/characters.html`. The background is flood-filled from the
+  image's edges (`scripts/cutout.ts`), so when a cut-out is off, tune its entry:
+  `edges` the subject is cut off by, `tolerance`, `drift` for gradient
+  backgrounds, `holes: false` when the subject shares the background's colours,
+  `lines` for the seams between slices, `erase`/`keep` rectangles…
+  `npm run extract:characters -- --only <template id>` redoes some of them.
 
 ## Browse
 
@@ -52,8 +64,9 @@ with sharp and cached in `data/thumbs/`.
 
 The category menu filters the list: GIFs (animated templates), Complete (every
 other template), Backgrounds (blank pages, plain colours), Formats (empty panel
-layouts) and Additions (elements such as faces, none yet). Backgrounds, Formats
-and Additions are listed by template id in `client/categories.ts`.
+layouts) and Characters (the transparent cut-outs from `data/characters/`,
+linked to their template as variants). Backgrounds and Formats are listed by
+template id in `client/categories.ts`.
 
 ### Create a background
 
@@ -68,7 +81,7 @@ in the style of advice-animal templates, drawn on a canvas in the browser:
   between slices, shading across each slice, darkened corners and the output size.
 - “Start from a template’s look…” applies the look of a well-known template (Annoying
   Facebook Girl, Courage Wolf, Socially Awesome Awkward Penguin…).
-- An image goes on top: a template from the Additions category, or an uploaded,
+- An image goes on top: a character from the Characters category, or an uploaded,
   dropped or pasted one (a PNG with a transparent background works best). Drag it to
   move it, and set its size and a white halo.
 - “Download PNG” saves the result. The design is kept in the URL hash, so it can be

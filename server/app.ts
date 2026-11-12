@@ -5,11 +5,15 @@
 //   GET /icon.svg         → assets/icon.svg
 //   GET /js/<file>.js     → the compiled client (dist/client/, `npm run build`)
 //   GET /api/templates    → data/templates/index.json
+//   GET /api/characters   → data/characters/index.json
 //   GET /img/<file>       → full-size image (or .mp4 animated template) from
 //                           data/templates/, with Range support for videos
 //   GET /thumb/<file>     → 400px WebP thumbnail of an image, generated on
 //                           demand with sharp and cached in data/thumbs/
 //                           (animated templates use their .poster.jpg)
+//   GET /img/characters/<file>, /thumb/characters/<file>
+//                         → the same for the characters in data/characters/
+//                           (thumbnails cached in data/thumbs/characters/)
 
 import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from 'node:http';
 import { createReadStream } from 'node:fs';
@@ -24,10 +28,18 @@ export interface AppOptions {
   root: string;
   /** Defaults to <root>/data/templates. */
   templatesDir?: string;
+  /** Defaults to <root>/data/characters. */
+  charactersDir?: string;
   /** Defaults to <root>/data/thumbs. */
   thumbsDir?: string;
   /** Resolves to sharp, or null to serve originals as thumbnails. */
   sharp?: Promise<SharpFactory | null>;
+}
+
+/** Where a collection's images are, and where their thumbnails are cached. */
+interface Collection {
+  dir: string;
+  thumbs: string;
 }
 
 export type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -155,6 +167,7 @@ export function safeName(encoded: string, allowVideo: boolean): string | null {
 export function createApp({
   root,
   templatesDir = path.join(root, 'data/templates'),
+  charactersDir = path.join(root, 'data/characters'),
   thumbsDir = path.join(root, 'data/thumbs'),
   sharp = loadSharp(),
 }: AppOptions): Handler {
@@ -164,20 +177,24 @@ export function createApp({
     '/style.css': path.join(root, 'public/style.css'),
     '/icon.svg': path.join(root, 'assets/icon.svg'),
     '/api/templates': path.join(templatesDir, 'index.json'),
+    '/api/characters': path.join(charactersDir, 'index.json'),
   };
+  // Image collections: the templates, and the characters cut out of them.
+  const templates: Collection = { dir: templatesDir, thumbs: thumbsDir };
+  const characters: Collection = { dir: charactersDir, thumbs: path.join(thumbsDir, 'characters') };
   const pendingThumbs = new Map<string, Promise<string>>();
 
-  async function thumbnail(sharp: SharpFactory, name: string): Promise<string> {
-    const src = path.join(templatesDir, name);
-    const dest = path.join(thumbsDir, `${name}.webp`);
+  async function thumbnail(sharp: SharpFactory, { dir, thumbs }: Collection, name: string): Promise<string> {
+    const src = path.join(dir, name);
+    const dest = path.join(thumbs, `${name}.webp`);
     const [srcInfo, destInfo] = await Promise.all([stat(src), stat(dest).catch(() => null)]);
     if (destInfo && destInfo.mtimeMs >= srcInfo.mtimeMs) return dest;
 
     // Several requests for the same missing thumbnail share one render.
-    let job = pendingThumbs.get(name);
+    let job = pendingThumbs.get(dest);
     if (!job) {
-      const tmp = path.join(thumbsDir, `.${process.pid}.${name}.webp`);
-      job = mkdir(thumbsDir, { recursive: true })
+      const tmp = path.join(thumbs, `.${process.pid}.${name}.webp`);
+      job = mkdir(thumbs, { recursive: true })
         .then(() =>
           sharp(src)
             .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
@@ -186,8 +203,8 @@ export function createApp({
         )
         .then(() => rename(tmp, dest))
         .then(() => dest)
-        .finally(() => pendingThumbs.delete(name));
-      pendingThumbs.set(name, job);
+        .finally(() => pendingThumbs.delete(dest));
+      pendingThumbs.set(dest, job);
     }
     return job;
   }
@@ -202,15 +219,16 @@ export function createApp({
     const script = pathname.match(/^\/js\/([\w-]+\.js)$/);
     if (script) return sendFile(req, res, path.join(clientDir, script[1]));
 
-    const match = pathname.match(/^\/(img|thumb)\/([^/]+)$/);
-    const name = match && safeName(match[2], match[1] === 'img');
+    const match = pathname.match(/^\/(img|thumb)\/(characters\/)?([^/]+)$/);
+    const name = match && safeName(match[3], match[1] === 'img' && !match[2]);
     if (!match || !name) return sendText(res, 404, 'Not found');
 
-    const original = path.join(templatesDir, name);
+    const collection = match[2] ? characters : templates;
+    const original = path.join(collection.dir, name);
     const sharpFn = match[1] === 'thumb' ? await sharp : null;
     if (!sharpFn) return sendFile(req, res, original);
     try {
-      return await sendFile(req, res, await thumbnail(sharpFn, name));
+      return await sendFile(req, res, await thumbnail(sharpFn, collection, name));
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return sendText(res, 404, 'Not found');
       console.warn(`thumbnail failed for ${name}: ${(err as Error).message}`);

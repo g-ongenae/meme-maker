@@ -1,8 +1,10 @@
 // Template browser: grid with search, category filter and sort, plus a viewer
 // dialog with a side panel of alternatives: the template's other formats (the
-// duplicates merged into it) and its variations (related templates).
+// duplicates merged into it) and its variations (related templates, and the
+// characters cut out of it). Characters are listed as templates of their own.
 
 import { type Category, CATEGORIES, categoryOf, isCategory } from './categories.ts';
+import { type Character, withCharacters } from './characters.ts';
 import { $ } from './dom.ts';
 import { createEditor, isEditorHash } from './editor.ts';
 import {
@@ -108,13 +110,18 @@ function buildCard(t: Template): Card {
   aka.hidden = true;
 
   a.append(img);
-  if (t.animated) {
-    const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = 'GIF';
-    badge.title = 'Animated template';
-    a.append(badge);
+  const badge = t.animated
+    ? ['GIF', 'Animated template']
+    : t.cutFrom
+      ? ['Character', 'Cut out of a template']
+      : null;
+  if (badge) {
+    const el = document.createElement('span');
+    el.className = 'badge';
+    [el.textContent, el.title] = badge;
+    a.append(el);
   }
+  if (t.cutFrom) a.classList.add('character');
   a.append(name, aka);
   li.append(a);
   return { template: t, el: li, aka, keys: searchKeys(t), category: categoryOf(t) };
@@ -202,13 +209,15 @@ function display(card: Card, t: Duplicate): void {
   shown = t;
 
   const own = t === card.template;
+  const from = card.template.cutFrom ? byId.get(card.template.cutFrom)?.template : undefined;
   $('meta').textContent =
     (own ? '' : `Duplicate “${t.name}” · `) +
-    `#${t.rank} on ${t.source.site} · ${t.width} × ${t.height} · ${t.file.split('.').pop()?.toUpperCase()}` +
+    (from ? `Cut out of “${from.name}”` : `#${t.rank} on ${t.source.site}`) +
+    ` · ${t.width} × ${t.height} · ${t.file.split('.').pop()?.toUpperCase()}` +
     (t.animated ? ' · animated' : '');
   openLink.href = imgUrl(t);
   downloadLink.href = imgUrl(t);
-  downloadLink.download = t.file;
+  downloadLink.download = t.file.split('/').pop() ?? t.file;
   sourceLink.href = t.source.pageUrl;
   for (const li of formatList.children) {
     const button = li.firstElementChild;
@@ -255,7 +264,8 @@ function renderRelated(card: Card): void {
   );
   variationList.replaceChildren(
     ...variants.map((v) => {
-      const li = relatedItem(v.template, v.template.name, size(v.template));
+      const detail = size(v.template) + (v.template.cutFrom ? ' · character' : '');
+      const li = relatedItem(v.template, v.template.name, detail);
       const a = document.createElement('a');
       a.href = `#${v.template.id}`;
       a.title = v.template.name;
@@ -390,7 +400,7 @@ category.addEventListener('change', render);
 sort.addEventListener('change', render);
 
 async function init(): Promise<void> {
-  const res = await fetch('/api/templates');
+  const [res, charactersRes] = await Promise.all([fetch('/api/templates'), fetch('/api/characters')]);
   if (!res.ok) {
     empty.hidden = false;
     empty.innerHTML =
@@ -398,7 +408,9 @@ async function init(): Promise<void> {
     openFromHash(); // the editor works without templates
     return;
   }
-  cards = ((await res.json()) as Template[]).map(buildCard);
+  // Characters are optional: `npm run extract:characters` makes them.
+  const characters = charactersRes.ok ? ((await charactersRes.json()) as Character[]) : [];
+  cards = withCharacters((await res.json()) as Template[], characters).map(buildCard);
   byId = new Map(cards.map((c) => [c.template.id, c]));
   editor.setLibrary(cards.map((c) => c.template));
   fillCategories();

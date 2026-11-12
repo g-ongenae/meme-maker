@@ -24,6 +24,8 @@ export interface Template {
   duplicates?: Duplicate[];
   /** Ids of related but different templates (3 vs 4 panels, recoloured…), most popular first. */
   variants?: string[];
+  /** Set on characters (see characters.ts): the id of the template they were cut out of. */
+  cutFrom?: string;
 }
 
 /** A duplicate's own file, kept as an alternative format of its template. */
@@ -45,9 +47,13 @@ export const searchWords = (query: string): string[] => fold(query).split(/\s+/)
 /** A template or one of its duplicates: something with a file to show. */
 export type Media = Pick<Template, 'file' | 'poster'>;
 
-export const imgUrl = (t: Media): string => `/img/${encodeURIComponent(t.file)}`;
+// Files are relative to data/templates/, or in a subdirectory for other
+// collections ("characters/advice-dog.png").
+const encodePath = (file: string): string => file.split('/').map(encodeURIComponent).join('/');
+
+export const imgUrl = (t: Media): string => `/img/${encodePath(t.file)}`;
 // Animated templates are .mp4 files: their thumbnail comes from the poster.
-export const thumbUrl = (t: Media): string => `/thumb/${encodeURIComponent(t.poster ?? t.file)}`;
+export const thumbUrl = (t: Media): string => `/thumb/${encodePath(t.poster ?? t.file)}`;
 
 export const SORTS = {
   rank: (a: Template, b: Template) => a.rank - b.rank,

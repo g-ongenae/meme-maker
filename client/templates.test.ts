@@ -44,6 +44,12 @@ describe('urls', () => {
     assert.equal(thumbUrl(t), '/thumb/a%20b%23c.jpg');
   });
 
+  it('keeps the subdirectory of other collections', () => {
+    const t = template({ file: 'characters/a b.png' });
+    assert.equal(imgUrl(t), '/img/characters/a%20b.png');
+    assert.equal(thumbUrl(t), '/thumb/characters/a%20b.png');
+  });
+
   it('uses the poster as the thumbnail of animated templates', () => {
     const t = template({ file: 'x.mp4', poster: 'x.poster.jpg', animated: true });
     assert.equal(imgUrl(t), '/img/x.mp4');

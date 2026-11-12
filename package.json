@@ -10,6 +10,7 @@
     "start": "npm run build && node server/main.ts",
     "fetch:imgflip": "node scripts/fetch-imgflip.ts",
     "dedupe": "node scripts/dedupe.ts",
+    "extract:characters": "node scripts/extract-characters.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
