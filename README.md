@@ -25,16 +25,32 @@ npm run dedupe          # remove duplicates → data/templates/ (+ index.json)
   Review merged groups in `data/duplicates.html`.
 - Duplicates the comparison misses (swapped panels, collages…) go under `same` in
   `scripts/duplicates.json`, and false matches under `different`, by imgflip id.
-  `node scripts/dedupe.mjs --explain <id>,<id>` shows why two images match or not.
+  `npm run dedupe -- --explain <id>,<id>` shows why two images match or not.
 - Frames are read from videos with the ffmpeg binary from `ffmpeg-static` (set
   `FFMPEG` to use another one).
 
 ## Browse
 
 ```sh
-npm start               # http://127.0.0.1:4321 (override with PORT / HOST)
+npm start               # builds the client, then http://127.0.0.1:4321 (override with PORT / HOST)
 ```
 
-A dependency-free Node server (`server.mjs`) plus a single page (`public/index.html`)
-to search, sort and view the templates in `data/templates/`. Thumbnails are rendered
-on demand with sharp and cached in `data/thumbs/`.
+A dependency-free Node server (`server/`) serving the page in `public/` (`index.html`
+and `style.css`) and its script, compiled from `client/` to `dist/client/`, to search,
+sort and view the templates in `data/templates/`. Thumbnails are rendered on demand
+with sharp and cached in `data/thumbs/`.
+
+## Development
+
+Everything is TypeScript. Node ≥ 26 runs the server and scripts
+directly by stripping types, so only the browser code in `client/` is compiled
+(`npm run build`).
+
+```sh
+npm run lint            # ESLint (npm run lint:fix to fix)
+npm run format:check    # Prettier (npm run format to fix)
+npm run typecheck       # tsc, for Node and browser code
+npm test                # node --test on every *.test.ts
+```
+
+CI (`.github/workflows/ci.yml`) runs all four on every push to `master` and every pull request.
