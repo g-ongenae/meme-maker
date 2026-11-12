@@ -32,6 +32,7 @@
           <option value="name">Name A–Z</option>
           <option value="size">Largest</option>
         </select>
+        <a id="createBackground" class="header-button" href="#editor">Create background</a>
       </div>
     </header>
 
@@ -90,6 +91,118 @@
           <a id="open" target="_blank" rel="noopener">Open original</a>
           <a id="download">Download</a>
           <a id="source" target="_blank" rel="noopener">View on imgflip</a>
+        </div>
+      </div>
+    </dialog>
+    <dialog id="editor" aria-labelledby="editorTitle">
+      <div id="editorStage" class="editor-stage">
+        <div id="editorCanvas" class="editor-canvas">
+          <canvas id="canvas" aria-label="Background preview"></canvas>
+          <button
+            id="centreHandle"
+            class="centre-handle"
+            type="button"
+            aria-label="Centre: drag it, or move it with the arrow keys"
+            title="Drag to move the centre"
+          ></button>
+        </div>
+        <button id="editorClose" class="close" type="button" aria-label="Close">✕</button>
+        <p id="dropHint" class="drop-hint" hidden>Drop the image to put it on top</p>
+      </div>
+      <form id="editorForm" class="editor-panel">
+        <h2 id="editorTitle">Create a background</h2>
+        <select id="preset" aria-label="Start from a template’s look" autofocus>
+          <option value="">Start from a template’s look…</option>
+        </select>
+        <div id="patterns" class="segmented" role="radiogroup" aria-label="Pattern"></div>
+
+        <section>
+          <h4 id="colorsLabel">Colours</h4>
+          <div id="colors" class="palette"></div>
+        </section>
+        <section data-patterns="split">
+          <h4 id="colors2Label">Bottom colours</h4>
+          <div id="colors2" class="palette"></div>
+          <label class="row"
+            >Halves
+            <select name="split"></select
+          ></label>
+        </section>
+
+        <section data-patterns="sunburst split glow">
+          <h4 id="slicesLabel">Slices</h4>
+          <label class="range">Count <input type="range" name="slices" /><output></output></label>
+          <label class="range" data-patterns="glow"
+            >Light <input type="range" name="rays" /><output></output
+          ></label>
+          <label class="range"
+            >Rotation <input type="range" name="rotation" data-unit="°" /><output></output
+          ></label>
+          <label class="range">Uneven <input type="range" name="irregularity" /><output></output></label>
+          <button id="shuffle" class="small" type="button" title="Draw other slice widths">
+            Shuffle widths
+          </button>
+        </section>
+        <section data-patterns="sunburst split glow">
+          <h4>Centre</h4>
+          <label class="range">Across <input type="range" name="cx" data-unit="%" /><output></output></label>
+          <label class="range">Down <input type="range" name="cy" data-unit="%" /><output></output></label>
+        </section>
+        <section data-patterns="sunburst split">
+          <h4>Lines between slices</h4>
+          <label class="range">Width <input type="range" name="lineWidth" /><output></output></label>
+          <label class="row">Colour <input type="color" name="lineColor" /></label>
+        </section>
+        <section>
+          <h4>Shading</h4>
+          <label class="range" data-patterns="sunburst split"
+            >Slices <input type="range" name="shade" /><output></output
+          ></label>
+          <label class="range">Corners <input type="range" name="vignette" /><output></output></label>
+        </section>
+
+        <section>
+          <h4>Image on top</h4>
+          <ul id="library" class="library"></ul>
+          <p id="libraryEmpty" class="hint">
+            No characters in the library yet. Upload an image (a PNG with a transparent background works
+            best), or drop or paste one here.
+          </p>
+          <div class="buttons">
+            <button id="uploadButton" class="small" type="button">Upload…</button>
+            <button id="removeImage" class="small" type="button" data-image>Remove</button>
+            <input id="upload" type="file" accept="image/*" hidden />
+          </div>
+          <label class="range" data-image
+            >Size <input type="range" name="scale" data-unit="%" /><output></output
+          ></label>
+          <label class="range" data-image
+            >Across <input type="range" name="ix" data-unit="%" /><output></output
+          ></label>
+          <label class="range" data-image
+            >Down <input type="range" name="iy" data-unit="%" /><output></output
+          ></label>
+          <label class="range" data-image>Halo <input type="range" name="halo" /><output></output></label>
+        </section>
+
+        <section>
+          <h4>Size</h4>
+          <div class="size">
+            <input type="number" name="width" aria-label="Width" />
+            <span>×</span>
+            <input type="number" name="height" aria-label="Height" />
+            <span>px</span>
+          </div>
+        </section>
+      </form>
+      <div class="info">
+        <div>
+          <h2>Custom background</h2>
+          <p id="editorMeta"></p>
+        </div>
+        <div class="actions">
+          <button id="editorReset" type="button">Reset</button>
+          <button id="editorDownload" class="primary" type="button">Download PNG</button>
         </div>
       </div>
     </dialog>

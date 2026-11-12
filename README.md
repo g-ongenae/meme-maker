@@ -55,6 +55,28 @@ other template), Backgrounds (blank pages, plain colours), Formats (empty panel
 layouts) and Additions (elements such as faces, none yet). Backgrounds, Formats
 and Additions are listed by template id in `client/categories.ts`.
 
+### Create a background
+
+“Create background” (or `#editor` in the address bar) opens an editor for backgrounds
+in the style of advice-animal templates, drawn on a canvas in the browser:
+
+- Patterns: **sunburst** (slices from a centre point, colours in turn), **glow** (a
+  radial gradient through its colours, with optional light rays), **split** (two halves,
+  top/bottom or left/right, each with its own sunburst colours) and **solid**.
+- Settings: up to 8 colours, slice count, rotation, uneven slice widths (seeded, with
+  “Shuffle widths”), the centre (drag it on the preview or use the arrow keys), lines
+  between slices, shading across each slice, darkened corners and the output size.
+- “Start from a template’s look…” applies the look of a well-known template (Annoying
+  Facebook Girl, Courage Wolf, Socially Awesome Awkward Penguin…).
+- An image goes on top: a template from the Additions category, or an uploaded,
+  dropped or pasted one (a PNG with a transparent background works best). Drag it to
+  move it, and set its size and a white halo.
+- “Download PNG” saves the result. The design is kept in the URL hash, so it can be
+  bookmarked or shared (an uploaded image stays local).
+
+The model, its URL encoding, the presets and the drawing are in `client/background.ts`
+(DOM-free, tested), and the dialog in `client/editor.ts`.
+
 ## Development
 
 Everything is TypeScript. Node ≥ 26 runs the server and scripts

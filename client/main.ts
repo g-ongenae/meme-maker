@@ -3,6 +3,8 @@
 // duplicates merged into it) and its variations (related templates).
 
 import { type Category, CATEGORIES, categoryOf, isCategory } from './categories.ts';
+import { $ } from './dom.ts';
+import { createEditor, isEditorHash } from './editor.ts';
 import {
   type Duplicate,
   type SearchKeys,
@@ -16,12 +18,6 @@ import {
   searchWords,
   thumbUrl,
 } from './templates.ts';
-
-function $<T extends HTMLElement = HTMLElement>(id: string): T {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`#${id} not found`);
-  return el as T;
-}
 
 const grid = $<HTMLUListElement>('grid');
 const empty = $<HTMLParagraphElement>('empty');
@@ -47,6 +43,11 @@ const formatList = $<HTMLUListElement>('formatList');
 const variations = $('variations');
 const variationList = $<HTMLUListElement>('variationList');
 const relatedEmpty = $('relatedEmpty');
+const editor = createEditor({
+  onClose: () => {
+    if (isEditorHash(location.hash)) setHash('');
+  },
+});
 
 // Viewer preferences, remembered across visits (storage can be unavailable).
 const prefs = {
@@ -314,6 +315,12 @@ function step(delta: number): void {
 }
 
 function openFromHash(): void {
+  if (isEditorHash(location.hash)) {
+    if (viewer.open) viewer.close();
+    editor.open(new URLSearchParams(location.hash.split('?')[1]));
+    return;
+  }
+  if (editor.isOpen) editor.close();
   const id = decodeURIComponent(location.hash.slice(1));
   const card = id ? byId.get(id) : undefined;
   if (card) show(card);
@@ -362,7 +369,8 @@ viewer.addEventListener('close', () => {
   big.removeAttribute('src');
   bigVideo.removeAttribute('src');
   bigVideo.load();
-  setHash('');
+  // Unless it's closing for the editor, opened from the address bar.
+  if (!isEditorHash(location.hash)) setHash('');
 });
 viewer.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
@@ -372,7 +380,7 @@ viewer.addEventListener('keydown', (e) => {
 });
 window.addEventListener('hashchange', openFromHash);
 document.addEventListener('keydown', (e) => {
-  if (e.key === '/' && document.activeElement !== search && !viewer.open) {
+  if (e.key === '/' && document.activeElement !== search && !viewer.open && !editor.isOpen) {
     e.preventDefault();
     search.select();
   }
@@ -387,10 +395,12 @@ async function init(): Promise<void> {
     empty.hidden = false;
     empty.innerHTML =
       'No templates found. Run <code>npm run fetch:imgflip</code> then <code>npm run dedupe</code>, and reload.';
+    openFromHash(); // the editor works without templates
     return;
   }
   cards = ((await res.json()) as Template[]).map(buildCard);
   byId = new Map(cards.map((c) => [c.template.id, c]));
+  editor.setLibrary(cards.map((c) => c.template));
   fillCategories();
 
   const params = new URLSearchParams(location.search);
