@@ -37,16 +37,22 @@ npm run extract:characters  # cut characters out of templates → data/character
   `npm run dedupe -- --explain <id>,<id>` shows why two images match or not.
 - Frames are read from videos with the ffmpeg binary from `ffmpeg-static` (set
   `FFMPEG` to use another one).
-- `extract:characters` cuts the character out of the "advice animal" style
-  templates listed in `scripts/characters.json` (a subject over sunburst slices
-  or another flat or geometric background) and saves it as a transparent PNG,
+- `extract:characters` cuts the character out of the templates listed in
+  `scripts/characters.json` (a subject over sunburst slices or another flat or
+  geometric background, a plain white one, line art…) and saves it as a transparent PNG,
   cropped to it, in `data/characters/`. Each entry of `data/characters/index.json`
   has the character's `id`, `name`, `file`, size and the `template` it comes from.
   Review them in `data/characters.html`. The background is flood-filled from the
   image's edges (`scripts/cutout.ts`), so when a cut-out is off, tune its entry:
   `edges` the subject is cut off by, `tolerance`, `drift` for gradient
   backgrounds, `holes: false` when the subject shares the background's colours,
-  `lines` for the seams between slices, `erase`/`keep` rectangles…
+  `lines` for the seams between slices, `erase`/`keep` rectangles, `seeds` for
+  background the edges don't reach (behind a frame)…
+  For line art on white, `close` closes gaps in the outlines so the fill doesn't
+  leak inside, and `minSeed` keeps it from starting on lines that run into the
+  edges. A template with several characters gets an entry for each, with its own
+  `id`, `name` and the `crop` of the template it's in.
+  Transparent templates are cut out like the others (over magenta).
   `npm run extract:characters -- --only <template id>` redoes some of them.
 
 ## Browse

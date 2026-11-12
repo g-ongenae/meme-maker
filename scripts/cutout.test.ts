@@ -134,6 +134,24 @@ describe('backgroundMask', () => {
     assert.equal(at(mask, 60, 60), 0);
   });
 
+  it('closes gaps in outlines with `close`', () => {
+    // A black square outline, 2px thick, with a 3px gap, on white: line art
+    // whose inside is the background's colour.
+    const WHITE: Rgb = [255, 255, 255];
+    const img = image(S, S, (x, y) => {
+      const outline = x >= 30 && x < 90 && y >= 30 && y < 90 && !(x >= 32 && x < 88 && y >= 32 && y < 88);
+      return outline && !(y < 32 && x >= 58 && x < 61) ? BLACK : WHITE;
+    });
+    const options: CutoutOptions = { holes: false };
+    assert.equal(at(backgroundMask(img, options), C, C), 1, 'leaks without');
+    const mask = backgroundMask(img, { ...options, close: 2 });
+    assert.equal(at(mask, C, C), 0, 'inside');
+    assert.equal(at(mask, 59, 31), 0, 'the gap');
+    assert.equal(at(mask, 34, 34), 0, 'inside, along the outline');
+    assert.equal(at(mask, 28, C), 1, 'outside, along the outline');
+    assert.equal(at(mask, 5, 5), 1, 'background');
+  });
+
   it('erases and keeps rectangles', () => {
     const mask = backgroundMask(scene(), { erase: [[C + 30, 0, S, S]], keep: [[0, 0, 4, 4]] });
     assert.equal(at(mask, C + 35, C + 10), 1);

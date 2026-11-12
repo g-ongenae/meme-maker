@@ -16,7 +16,7 @@ import { parseArgs } from 'node:util';
 import sharp, { type Sharp } from 'sharp';
 import type { Character } from '../client/characters.ts';
 import type { Template } from '../client/templates.ts';
-import { type CutoutOptions, type RawImage, backgroundMask, cutout } from './cutout.ts';
+import { type CutoutOptions, type RawImage, type Rect, backgroundMask, cutout } from './cutout.ts';
 
 export interface CharacterEntry extends CutoutOptions {
   /** Id of the template to cut the character out of. */
@@ -25,6 +25,11 @@ export interface CharacterEntry extends CutoutOptions {
   id?: string;
   /** Defaults to the template's name. */
   name?: string;
+  /**
+   * Part of the template to cut the character out of, for templates with
+   * several. The other rectangles and points stay in the template's pixels.
+   */
+  crop?: Rect;
 }
 
 const { values: args } = parseArgs({ options: { only: { type: 'string' } } });
@@ -33,9 +38,34 @@ const TEMPLATES_DIR = path.resolve('data/templates');
 const OUT_DIR = path.resolve('data/characters');
 const CONFIG = path.resolve('scripts/characters.json');
 
+// Transparent templates are put over magenta, a background colour the fill
+// takes like any other (the colour behind transparent pixels is arbitrary).
 async function pixels(image: Sharp): Promise<RawImage> {
-  const { data, info } = await image.removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = await image
+    .flatten({ background: '#ff00ff' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   return { width: info.width, height: info.height, channels: 3, data: new Uint8Array(data) };
+}
+
+const region = ([left, top, right, bottom]: Rect) => ({
+  left,
+  top,
+  width: right - left,
+  height: bottom - top,
+});
+
+// The options' rectangles and points, from the template's pixels to the crop's.
+function shift(options: CutoutOptions, [left, top]: Rect): CutoutOptions {
+  const rect = ([l, t, r, b]: Rect): Rect => [l - left, t - top, r - left, b - top];
+  const { erase = [], keep = [], seeds = [] } = options;
+  return {
+    ...options,
+    erase: erase.map(rect),
+    keep: keep.map(rect),
+    seeds: seeds.map(([x, y]) => [x - left, y - top]),
+  };
 }
 
 async function main(): Promise<void> {
@@ -52,7 +82,7 @@ async function main(): Promise<void> {
 
   const characters = new Map(previous.map((c) => [c.id, c]));
   const missing: string[] = [];
-  for (const { template: templateId, id = templateId, name, ...options } of entries) {
+  for (const { template: templateId, id = templateId, name, crop, ...uncropped } of entries) {
     if (ONLY && !ONLY.includes(templateId) && !ONLY.includes(id)) continue;
     const t = byId.get(templateId);
     if (!t || t.animated) {
@@ -60,7 +90,9 @@ async function main(): Promise<void> {
       continue;
     }
     const src = path.join(TEMPLATES_DIR, t.file);
-    const [img, smooth] = await Promise.all([pixels(sharp(src)), pixels(sharp(src).median(3))]);
+    const load = () => (crop ? sharp(src).extract(region(crop)) : sharp(src));
+    const options = crop ? shift(uncropped, crop) : uncropped;
+    const [img, smooth] = await Promise.all([pixels(load()), pixels(load().median(3))]);
     const cut = cutout(img, backgroundMask(smooth, options), options);
     if (!cut.width) {
       console.warn(`${id}: nothing left after removing the background`);

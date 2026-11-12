@@ -1,39 +1,477 @@
 [
+  { "template": "1950s-middle-finger", "holes": false, "close": 3, "minSeed": 0.02 },
   { "template": "admiral-ackbar-relationship-expert" },
   { "template": "advice-dog", "lines": 4 },
   { "template": "advice-doge" },
   { "template": "advice-god", "lines": 4 },
   { "template": "advice-peeta" },
   { "template": "advice-yoda" },
+  { "template": "alarm-clock", "holes": false, "minSeed": 0.02 },
+  { "template": "angry-birds-pig", "holes": false, "minSeed": 0.02 },
   { "template": "annoying-facebook-girl" },
   { "template": "anti-joke-chicken", "holes": false },
   { "template": "art-student-owl", "holes": false, "tolerance": 18 },
+  { "template": "aw-yeah-rage-face", "holes": false, "close": 3, "minSeed": 0.02 },
+  {
+    "template": "babe-please",
+    "id": "babe-please-chad",
+    "name": "Babe Please (Chad)",
+    "crop": [600, 0, 1238, 642],
+    "edges": ["top", "left", "right"],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  {
+    "template": "babe-please",
+    "id": "babe-please-girl",
+    "name": "Babe Please (Girl)",
+    "crop": [0, 0, 560, 642],
+    "edges": ["top", "left", "right"],
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02
+  },
+  { "template": "bad-advice-cat" },
+  {
+    "template": "be-like-bill",
+    "holes": false,
+    "close": 3,
+    "seeds": [[40, 40]],
+    "erase": [
+      [0, 0, 913, 22],
+      [0, 885, 913, 907],
+      [0, 0, 22, 907],
+      [890, 0, 913, 907]
+    ],
+    "minSeed": 0.02
+  },
+  {
+    "template": "beavis-butthead",
+    "id": "beavis",
+    "name": "Beavis",
+    "crop": [0, 0, 360, 405],
+    "edges": ["left", "right"],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  {
+    "template": "beavis-butthead",
+    "id": "butt-head",
+    "name": "Butt-Head",
+    "crop": [360, 0, 720, 405],
+    "edges": ["left", "right"],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  {
+    "template": "bell-curve",
+    "id": "bell-curve-left",
+    "name": "Bell Curve (Left)",
+    "crop": [150, 480, 440, 724],
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02,
+    "edges": ["top", "left", "right"]
+  },
+  {
+    "template": "bell-curve",
+    "id": "bell-curve-middle",
+    "name": "Bell Curve (Middle)",
+    "crop": [650, 0, 930, 305],
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02
+  },
+  {
+    "template": "bell-curve",
+    "id": "bell-curve-right",
+    "name": "Bell Curve (Right)",
+    "crop": [1110, 420, 1420, 745],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  { "template": "big-brain-wojak", "holes": false, "close": 5, "minSeed": 0.02 },
+  { "template": "bill-o-reilly", "lines": 5, "edges": ["top", "left", "right"] },
+  { "template": "blank-red-maga-hat", "holes": false, "minSeed": 0.02 },
+  { "template": "blank-t-shirt", "holes": false, "minSeed": 0.02 },
+  {
+    "template": "blank-trophy",
+    "holes": false,
+    "minSeed": 0.02,
+    "seeds": [
+      [94, 121],
+      [364, 121]
+    ]
+  },
+  { "template": "brace-yourselves-x-is-coming", "holes": false, "minSeed": 0.02 },
+  { "template": "buddy-the-elf-excited", "holes": false, "minSeed": 0.02 },
+  {
+    "template": "buff-doge-vs-cheems",
+    "id": "buff-doge",
+    "name": "Buff Doge",
+    "crop": [0, 0, 500, 720],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  {
+    "template": "buff-doge-vs-cheems",
+    "id": "cheems",
+    "name": "Cheems",
+    "crop": [550, 0, 937, 720],
+    "holes": false,
+    "minSeed": 0.02
+  },
   { "template": "business-cat", "edges": ["top", "right", "left"] },
   { "template": "butthurt-dweller", "lines": 4 },
+  {
+    "template": "cereal-guy-spitting",
+    "holes": false,
+    "close": 4,
+    "edges": ["top", "left"],
+    "minSeed": 0.02
+  },
+  { "template": "challenge-accepted-rage-face", "holes": false, "close": 3, "minSeed": 0.02 },
   { "template": "chill-out-lemur" },
   { "template": "chuck-norris-with-guns", "lines": 6 },
+  {
+    "template": "close-enough",
+    "holes": false,
+    "close": 3,
+    "erase": [[15, 134, 262, 172]],
+    "edges": ["left", "right", "bottom"],
+    "minSeed": 0.02
+  },
+  { "template": "comic-book-guy", "holes": false, "minSeed": 0.02 },
   { "template": "contradictory-chris", "edges": ["top", "right", "left"] },
+  { "template": "corona", "holes": false, "minSeed": 0.02 },
   { "template": "courage-wolf", "drift": 0.1 },
   { "template": "crazy-girlfriend-praying-mantis" },
   { "template": "crazy-hispanic-man" },
+  { "template": "crying-because-of-cute", "holes": false, "close": 3, "minSeed": 0.02 },
+  {
+    "template": "dafuq-did-i-just-read-2",
+    "holes": false,
+    "close": 3,
+    "erase": [[40, 215, 420, 265]],
+    "minSeed": 0.02
+  },
+  { "template": "dancing-trollmom", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "deadpool-pick-up-lines", "seeds": [[37, 100]] },
+  { "template": "derp", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "derpina", "holes": false, "close": 3, "edges": ["top"], "minSeed": 0.02 },
+  { "template": "determined-guy-rage-face", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "dolph-ziggler-sells", "holes": false, "minSeed": 0.02 },
+  { "template": "drooling-brainless-idiot", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "duck-face", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "dumb-wojak", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "eminem-throw", "holes": false, "minSeed": 0.02 },
+  { "template": "family-guy-brian", "holes": false, "minSeed": 0.02 },
+  { "template": "family-tech-support-guy" },
+  {
+    "template": "feels-good-man",
+    "holes": false,
+    "close": 4,
+    "edges": ["top", "left", "right"],
+    "minSeed": 0.02
+  },
+  {
+    "template": "fffffffuuuuuuuuuuuu",
+    "holes": false,
+    "close": 3,
+    "erase": [
+      [340, 0, 500, 140],
+      [380, 140, 500, 376]
+    ],
+    "minSeed": 0.02
+  },
+  {
+    "template": "fk-yeah",
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02,
+    "edges": ["left", "right", "bottom"]
+  },
   { "template": "forever-alone", "drift": 0.1, "tolerance": 16, "unmix": false },
+  { "template": "forever-alone-happy", "holes": false, "close": 3, "minSeed": 0.02 },
   { "template": "foul-bachelor-frog", "holes": false },
   { "template": "foul-bachelorette-frog" },
+  { "template": "futurama-zoidberg", "holes": false, "minSeed": 0.02 },
+  {
+    "template": "get-a-load-of-this-guy",
+    "holes": false,
+    "edges": ["left"],
+    "minSeed": 0.02,
+    "seeds": [
+      [239, 0],
+      [230, 40]
+    ]
+  },
+  { "template": "google-chrome", "holes": false, "minSeed": 0.02 },
+  { "template": "grrr", "holes": false, "minSeed": 0.02 },
+  { "template": "guess-i-ll-die", "holes": false, "edges": ["top", "left", "right"], "minSeed": 0.02 },
+  { "template": "guinness-world-record", "holes": false, "minSeed": 0.02 },
+  {
+    "template": "happy-guy-rage-face",
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02,
+    "edges": ["top", "left", "right"]
+  },
+  { "template": "happy-minaj-2", "holes": false, "edges": ["top", "left", "right"], "minSeed": 0.02 },
+  {
+    "template": "happy-wojak-vs-depressed-wojak",
+    "id": "depressed-wojak",
+    "name": "Depressed Wojak",
+    "crop": [0, 995, 915, 1919],
+    "edges": ["top", "right"],
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02
+  },
+  {
+    "template": "happy-wojak-vs-depressed-wojak",
+    "id": "happy-wojak",
+    "name": "Happy Wojak",
+    "crop": [0, 0, 915, 975],
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02
+  },
   { "template": "hawkward", "lines": 3 },
+  {
+    "template": "he-will-never-get-a-girlfriend",
+    "holes": false,
+    "close": 3,
+    "erase": [
+      [40, 0, 215, 95],
+      [155, 95, 185, 108]
+    ],
+    "edges": ["top", "left", "right"],
+    "minSeed": 0.02
+  },
+  { "template": "hipster-kitty" },
+  { "template": "homer-simpson-drooling", "holes": false, "minSeed": 0.02 },
+  { "template": "homophobic-seal", "edges": ["top", "left", "right"], "holes": false, "minSeed": 0.02 },
+  {
+    "template": "i-hate-you-and-hope-you-die",
+    "holes": false,
+    "close": 3,
+    "erase": [
+      [226, 0, 520, 175],
+      [185, 0, 226, 110],
+      [480, 215, 716, 290]
+    ],
+    "edges": ["top", "left", "right"],
+    "minSeed": 0.02
+  },
+  {
+    "template": "i-know-that-feel-bro",
+    "holes": false,
+    "close": 4,
+    "edges": ["top", "right"],
+    "minSeed": 0.02
+  },
+  {
+    "template": "i-wake-up-cat",
+    "holes": false,
+    "erase": [
+      [0, 0, 508, 75],
+      [0, 0, 110, 500],
+      [420, 0, 508, 500]
+    ],
+    "minSeed": 0.02
+  },
+  { "template": "idiot-nerd-girl", "lines": 3, "edges": ["top", "left", "right"] },
   { "template": "idiotaco" },
+  { "template": "if-you-know-what-i-mean-bean", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "internet-explorer", "holes": false, "minSeed": 0.02 },
+  { "template": "jackie-chan-wtf", "holes": false, "close": 3, "minSeed": 0.02 },
   { "template": "jersey-santa" },
+  { "template": "jim-lehrer-the-man", "holes": false, "minSeed": 0.02 },
+  { "template": "kim-jong-il-y-u-no", "edges": ["top", "left", "right"], "tolerance": 20, "holes": false },
+  { "template": "lame-pun-coon" },
+  { "template": "lol-guy", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "look-marge", "holes": false, "minSeed": 0.02 },
+  { "template": "magic-8-ball", "holes": false, "minSeed": 0.02 },
+  { "template": "mario-hammer-smash", "holes": false, "minSeed": 0.02 },
+  { "template": "minions", "holes": false, "minSeed": 0.02 },
+  { "template": "misunderstood-mitch", "holes": false, "edges": ["top", "left", "right"], "minSeed": 0.02 },
+  {
+    "template": "mother-of-god",
+    "holes": false,
+    "close": 3,
+    "erase": [[60, 238, 340, 285]],
+    "minSeed": 0.02
+  },
   { "template": "musically-oblivious-8th-grader" },
+  { "template": "neil-degrasse-tyson", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "not-bad-obama", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "not-okay-rage-face", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "npc", "holes": false, "edges": ["top"], "minSeed": 0.02 },
+  { "template": "officer-cartman", "holes": false, "minSeed": 0.02 },
+  {
+    "template": "okay-guy-rage-face",
+    "holes": false,
+    "close": 3,
+    "erase": [[175, 188, 251, 222]],
+    "minSeed": 0.02
+  },
+  {
+    "template": "old-man-yells-at-cloud-2",
+    "holes": false,
+    "erase": [[60, 0, 260, 85]],
+    "edges": ["top", "left"],
+    "minSeed": 0.02
+  },
+  { "template": "original-i-lied", "holes": false, "close": 3, "minSeed": 0.02 },
+  { "template": "overly-suave-it-guy" },
   { "template": "paranoid-parrot" },
+  { "template": "pepe-the-frog", "holes": false, "edges": ["top"], "minSeed": 0.02 },
   { "template": "philosoraptor" },
   { "template": "pickup-line-panda", "holes": false },
+  { "template": "pony-shrugs", "holes": false, "edges": ["top", "left", "right"], "minSeed": 0.02 },
+  {
+    "template": "pretending-to-be-happy-hiding-crying-behind-a-mask",
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02
+  },
   { "template": "professor-oak", "lines": 2 },
+  { "template": "question-rage-face", "holes": false, "close": 3, "edges": ["top", "left"], "minSeed": 0.02 },
+  { "template": "rarity", "holes": false, "minSeed": 0.02 },
   { "template": "rich-raven" },
+  { "template": "ryan-gosling", "holes": false, "edges": ["top", "left", "right"], "minSeed": 0.02 },
+  { "template": "sad-x-all-the-y", "holes": false, "minSeed": 0.02 },
+  { "template": "scumbag-daylight-savings-time", "holes": false, "minSeed": 0.02 },
+  { "template": "scumbag-redditor", "holes": false, "minSeed": 0.02 },
+  { "template": "seriously-face", "holes": false, "close": 3, "minSeed": 0.02, "edges": ["top", "left"] },
+  { "template": "simsimi", "holes": false, "edges": ["top", "bottom"], "minSeed": 0.02 },
   { "template": "slowpoke", "drift": 0.1 },
+  {
+    "template": "smirk-rage-face",
+    "holes": false,
+    "close": 3,
+    "edges": [],
+    "seeds": [
+      [0, 0],
+      [197, 0],
+      [0, 218],
+      [197, 218]
+    ],
+    "minSeed": 0.02
+  },
   { "template": "socially-awesome-penguin" },
   { "template": "socially-awkward-penguin" },
+  {
+    "template": "soyboy-vs-yes-chad",
+    "id": "soyboy",
+    "name": "Soyboy",
+    "crop": [0, 0, 700, 978],
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02
+  },
+  {
+    "template": "soyboy-vs-yes-chad",
+    "id": "yes-chad",
+    "name": "Yes Chad",
+    "crop": [800, 0, 1435, 978],
+    "edges": ["top", "left", "bottom"],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  { "template": "soyjak-pointing", "holes": false, "close": 5, "edges": ["top"], "minSeed": 0.02 },
+  { "template": "stop-cop", "holes": false, "minSeed": 0.02 },
+  {
+    "template": "stop-giving-me-your-toughest-battles",
+    "id": "stop-giving-me-your-toughest-battles-jesus",
+    "name": "Stop Giving Me Your Toughest Battles (Jesus)",
+    "crop": [600, 0, 1136, 712],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  {
+    "template": "stop-giving-me-your-toughest-battles",
+    "id": "stop-giving-me-your-toughest-battles-wojak",
+    "name": "Stop Giving Me Your Toughest Battles (Wojak)",
+    "crop": [0, 0, 600, 455],
+    "holes": false,
+    "close": 4,
+    "minSeed": 0.02
+  },
+  { "template": "stupid-dumb-drooling-puzzle", "holes": false, "close": 3, "minSeed": 0.02 },
   { "template": "subtle-pickup-liner", "edges": ["top", "right", "left"] },
   { "template": "success-kid" },
+  {
+    "template": "sweaty-concentrated-rage-face",
+    "holes": false,
+    "close": 3,
+    "edges": [],
+    "seeds": [
+      [0, 0],
+      [183, 0],
+      [0, 204],
+      [183, 204]
+    ],
+    "minSeed": 0.02
+  },
+  { "template": "table-flip-guy", "holes": false, "close": 6, "minSeed": 0.02 },
+  { "template": "tada-will-smith", "holes": false, "minSeed": 0.02 },
+  { "template": "team-rocket", "holes": false, "minSeed": 0.02 },
   { "template": "tech-impaired-duck" },
+  { "template": "the-count", "holes": false, "edges": ["top", "left", "right"], "minSeed": 0.02 },
+  { "template": "the-simpsons-ralph-wiggum-picking-his-nose", "holes": false, "minSeed": 0.02 },
   { "template": "troll-face-colored", "lines": 9 },
-  { "template": "why-you-no", "unmix": false }
+  { "template": "true-story", "holes": false, "close": 3, "erase": [[340, 180, 500, 222]], "minSeed": 0.02 },
+  { "template": "uncle-sam", "holes": false, "minSeed": 0.02 },
+  {
+    "template": "virgin-vs-chad",
+    "id": "the-chad",
+    "name": "The Chad",
+    "crop": [1288, 0, 2518, 1024],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  {
+    "template": "virgin-vs-chad",
+    "id": "the-virgin",
+    "name": "The Virgin",
+    "crop": [300, 0, 1000, 1024],
+    "holes": false,
+    "minSeed": 0.02
+  },
+  { "template": "wednesday-frog-blank", "holes": false, "drift": 0.05, "minSeed": 0.02 },
+  { "template": "why-you-no", "unmix": false },
+  { "template": "wojak-mask", "holes": false, "close": 3, "minSeed": 0.02 },
+  {
+    "template": "x-all-the-y",
+    "edges": ["top", "left", "right"],
+    "holes": false,
+    "seeds": [
+      [660, 110],
+      [150, 120]
+    ]
+  },
+  { "template": "yao-ming", "holes": false, "close": 3, "edges": ["top", "left"], "minSeed": 0.02 },
+  {
+    "template": "yes-honey",
+    "id": "yes-honey-girl",
+    "name": "Yes Honey (Girl)",
+    "crop": [0, 0, 500, 964],
+    "edges": ["top", "right", "bottom"],
+    "holes": false,
+    "close": 3,
+    "minSeed": 0.02
+  },
+  {
+    "template": "yes-honey",
+    "id": "yes-honey-wojak",
+    "name": "Yes Honey (Wojak)",
+    "crop": [560, 0, 960, 964],
+    "edges": ["top", "left", "bottom"],
+    "holes": false,
+    "close": 4,
+    "minSeed": 0.02
+  },
+  { "template": "you-re-too-slow-sonic", "holes": false, "minSeed": 0.02 }
 ]
