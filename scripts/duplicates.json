@@ -34,7 +34,11 @@
     { "note": "Fernanfloo dresses up: aunt's and sister's wedding", "ids": ["52atyz", "4ykrm9", "5a0m7c"] },
     { "note": "Laughing men in suits", "ids": ["18fli", "3ms1"] },
     { "note": "Stop trying to make fetch happen", "ids": ["4hvlq", "1q0ylm"] },
-    { "note": "This is fine: Dog in burning house", "ids": ["1buxli", "jl9b3"] }
+    { "note": "This is fine: Dog in burning house", "ids": ["1buxli", "jl9b3"] },
+    {
+      "note": "Plain black backgrounds: Black background, X will return, Blank",
+      "ids": ["b3bmf", "32ac1p", "cpyet"]
+    }
   ],
   "different": [
     {
