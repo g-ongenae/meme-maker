@@ -42,7 +42,7 @@ with sharp and cached in `data/thumbs/`.
 
 ## Development
 
-Everything is TypeScript. Node ≥ 24 runs the server and scripts
+Everything is TypeScript. Node ≥ 26 runs the server and scripts
 directly by stripping types, so only the browser code in `client/` is compiled
 (`npm run build`).
 
