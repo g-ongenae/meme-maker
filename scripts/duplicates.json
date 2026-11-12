@@ -1,0 +1,26 @@
+{
+  "same": [
+    {
+      "note": "Drake Hotline Bling: re-cropped panels, framed and swapped versions",
+      "ids": ["30b1gx", "1iruch", "2hu5lp", "1s8ffi", "2178y0", "16kb1d"]
+    },
+    {
+      "note": "Anakin Padme 4 panel: panels cropped differently",
+      "ids": ["5bgun8", "5cdn3n"]
+    },
+    {
+      "note": "Disappearing kid: static collage of the animation",
+      "ids": ["3ohapu", "1h2kbp"]
+    }
+  ],
+  "different": [
+    {
+      "note": "Mostly black images: their hashes are noise",
+      "ids": ["2m43dp", "dcfkd"]
+    },
+    {
+      "note": "Malicious Advice Mallard is the red variant of Actual Advice Mallard",
+      "ids": ["t2sg", "y7d3"]
+    }
+  ]
+}
