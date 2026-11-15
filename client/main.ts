@@ -171,6 +171,8 @@ function buildDiagramCard(d: Diagram): DiagramCard {
   open.target = '_blank';
   open.rel = 'noopener';
   open.title = `Edit “${d.name}” in the Mermaid live editor`;
+  // Named after the diagram rather than its code, which the link contains.
+  open.ariaLabel = `${d.name}, ${d.type} diagram: edit it in the Mermaid live editor (new tab)`;
   const code = document.createElement('pre');
   code.textContent = d.code;
   const badge = document.createElement('span');
@@ -191,6 +193,7 @@ function buildDiagramCard(d: Diagram): DiagramCard {
     a.target = '_blank';
     a.rel = 'noopener';
     a.title = `Edit “${d.name}” in the ${format.name} format`;
+    a.ariaLabel = `${format.name} format (new tab)`;
     a.textContent = format.name;
     formats.append(a);
   }
