@@ -178,9 +178,11 @@ const isDiagram = (e: Entry): e is DiagramCard => 'diagram' in e;
 
 // mermaid.ink answers 503 to a burst of requests: ask it for a few pictures
 // at a time, the viewer's first, and try again a few times, waiting longer
-// each time. A picture it has rendered once comes back fast.
+// each time. A picture it has rendered once comes back fast. A request that
+// stalls is given up after a while, or it would hold its slot for good.
 const MAX_REQUESTS = 3;
 const RETRIES = 5;
+const TIMEOUT = 30_000;
 let requests = 0;
 const waiting: (() => void)[] = [];
 
@@ -214,7 +216,7 @@ async function retried<T>(job: () => Promise<T>, urgent = false): Promise<T> {
 
 function fetchPicture(url: string): Promise<Response> {
   return retried(async () => {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
     if (res.ok) return res;
     // A 4xx is the diagram's fault.
     throw new (res.status < 500 ? Final : Error)(`HTTP ${res.status}`);
@@ -229,8 +231,17 @@ function loadPicture(img: HTMLImageElement, src: string, urgent = false): void {
         if (!img.isConnected) return resolve();
         // A lazy image out of sight would hold its slot until it's seen.
         img.loading = 'eager';
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('not loaded'));
+        const settle = (err?: Error) => {
+          clearTimeout(timer);
+          img.onload = img.onerror = null;
+          if (!err) return resolve();
+          // Stops a stalled request, and shows no broken image until the next try.
+          img.removeAttribute('src');
+          reject(err);
+        };
+        const timer = setTimeout(() => settle(new Error('timed out')), TIMEOUT);
+        img.onload = () => settle();
+        img.onerror = () => settle(new Error('not loaded'));
         img.src = src;
       }),
     urgent,
@@ -315,8 +326,10 @@ function buildDiagramCard(d: Diagram): DiagramCard {
   aka.hidden = true;
   a.append(img, badge, name, aka);
   li.append(a);
-  // "diagram" or "mermaid" find them all.
-  const keys = { name: fold(`${d.type} diagram mermaid`), aliases: [fold(d.name)] };
+  // "diagram" or "mermaid" find them all. The alias has the type and keywords
+  // too, so that "C4 coffee" finds the C4 diagram of the coffee machine.
+  const keywords = `${d.type} diagram mermaid`;
+  const keys = { name: fold(keywords), aliases: [fold(`${d.name} ${keywords}`)] };
   return { id: `diagrams/${d.id}`, diagram: d, el: li, aka, keys };
 }
 const diagramCards = DIAGRAMS.map(buildDiagramCard);
