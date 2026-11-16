@@ -1,7 +1,8 @@
 // The Diagrams category: a funny take on each sample diagram of the Mermaid
-// live editor (mermaid.live), in the order of its samples menu. A diagram
-// opens in the editor, ready to edit, in one of a few formats (a theme and a
-// look). Each example is checked against Mermaid's parser before it's added.
+// live editor (mermaid.live), in the order of its samples menu. A diagram is
+// shown as rendered by mermaid.ink, in a few formats (a theme and a look), and
+// opens in the editor, ready to edit, in the format on show. Each example is
+// checked against Mermaid's parser before it's added.
 
 export interface Diagram {
   id: string;
@@ -14,29 +15,65 @@ export interface Diagram {
 export interface DiagramFormat {
   id: string;
   name: string;
+  /** What the format changes, for its tile in the alternatives. */
+  description: string;
   /** Mermaid configuration, as typed in the editor's Config tab. */
   config: Record<string, string>;
+  /** Background of its pictures (hex, no #): Mermaid's are transparent. */
+  background: string;
 }
 
 export const FORMATS: readonly DiagramFormat[] = [
   // Empty, like the editor's own default: Mermaid picks per diagram type.
-  { id: 'default', name: 'Default', config: {} },
-  { id: 'hand-drawn', name: 'Hand-drawn', config: { look: 'handDrawn' } },
-  { id: 'neo', name: 'Neo', config: { theme: 'neo', look: 'neo' } },
+  { id: 'default', name: 'Default', description: 'Mermaid’s defaults', config: {}, background: 'ffffff' },
+  {
+    id: 'hand-drawn',
+    name: 'Hand-drawn',
+    description: 'Hand-drawn look',
+    config: { look: 'handDrawn' },
+    background: 'ffffff',
+  },
+  {
+    id: 'neo',
+    name: 'Neo',
+    description: 'Neo theme and look',
+    config: { theme: 'neo', look: 'neo' },
+    background: 'ffffff',
+  },
   // Not 'dark': the editor swaps its default themes and their dark variants
-  // for the ones that follow its own light or dark mode.
-  { id: 'dark', name: 'Dark', config: { theme: 'neo-dark' } },
-  { id: 'forest', name: 'Forest', config: { theme: 'forest' } },
-  { id: 'neutral', name: 'Neutral', config: { theme: 'neutral' } },
+  // for the ones that follow its own light or dark mode. The background is the
+  // theme's own.
+  {
+    id: 'dark',
+    name: 'Dark',
+    description: 'Dark theme',
+    config: { theme: 'neo-dark' },
+    background: '201f1f',
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    description: 'Forest theme',
+    config: { theme: 'forest' },
+    background: 'ffffff',
+  },
+  {
+    id: 'neutral',
+    name: 'Neutral',
+    description: 'Neutral theme',
+    config: { theme: 'neutral' },
+    background: 'ffffff',
+  },
 ];
 
 export const EDITOR_URL = 'https://mermaid.live/edit';
+export const RENDER_URL = 'https://mermaid.ink';
 
-// URL-safe base64 of the UTF-8 text, without padding (js-base64's
-// `toBase64(text, true)`, which the editor uses).
-function base64Url(text: string): string {
+// URL-safe base64, without padding (js-base64's `fromUint8Array(bytes, true)`,
+// which the editor and mermaid.ink use).
+function base64Url(bytes: Uint8Array): string {
   let binary = '';
-  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+  for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
@@ -62,7 +99,27 @@ export const editorState = (d: Diagram, format: DiagramFormat): EditorState => (
 
 /** Link opening a diagram in mermaid.live, in a format (Default by default). */
 export const editorUrl = (d: Diagram, format: DiagramFormat = FORMATS[0]): string =>
-  `${EDITOR_URL}#base64:${base64Url(JSON.stringify(editorState(d, format)))}`;
+  `${EDITOR_URL}#base64:${base64Url(new TextEncoder().encode(JSON.stringify(editorState(d, format))))}`;
+
+/** The state as pako, the editor's compressed serialization: zlib, then base64. */
+export async function pako(state: object): Promise<string> {
+  const deflated = new Blob([JSON.stringify(state)]).stream().pipeThrough(new CompressionStream('deflate'));
+  return `pako:${base64Url(new Uint8Array(await new Response(deflated).arrayBuffer()))}`;
+}
+
+export interface Pictures {
+  svg: string;
+  png: string;
+}
+
+/** Links to a diagram rendered by mermaid.ink in a format, as SVG and PNG. */
+export async function pictureUrls(d: Diagram, format: DiagramFormat): Promise<Pictures> {
+  const state = await pako({ code: d.code, mermaid: JSON.stringify(format.config) });
+  return {
+    svg: `${RENDER_URL}/svg/${state}?bgColor=${format.background}`,
+    png: `${RENDER_URL}/img/${state}?type=png&bgColor=${format.background}`,
+  };
+}
 
 // Examples are written flush left and indented like the editor's samples.
 const code = (strings: TemplateStringsArray): string => strings.raw[0].trim();

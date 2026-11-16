@@ -2,12 +2,21 @@
 // dialog with a side panel of alternatives: the template's other formats (the
 // duplicates merged into it) and its variations (related templates, and the
 // characters cut out of it). Characters are listed as templates of their own.
-// Diagrams aren't templates: their tiles show Mermaid code and open it in the
-// Mermaid live editor, in the format picked on the tile.
+// Diagrams aren't templates but open in the same viewer: rendered by
+// mermaid.ink, with their formats (themes, looks) as alternatives, and a link
+// to edit them in the Mermaid live editor.
 
 import { type Category, CATEGORIES, categoryOf, isCategory } from './categories.ts';
 import { type Character, withCharacters } from './characters.ts';
-import { type Diagram, DIAGRAMS, FORMATS, editorUrl } from './diagrams.ts';
+import {
+  type Diagram,
+  type DiagramFormat,
+  type Pictures,
+  DIAGRAMS,
+  FORMATS,
+  editorUrl,
+  pictureUrls,
+} from './diagrams.ts';
 import { $ } from './dom.ts';
 import { createEditor, isEditorHash } from './editor.ts';
 import {
@@ -79,6 +88,7 @@ showDuplicates.checked = prefs.get('duplicates', true);
 const fmt = new Intl.NumberFormat('en');
 
 interface Card {
+  id: string;
   template: Template;
   el: HTMLLIElement;
   aka: HTMLSpanElement;
@@ -89,9 +99,10 @@ interface Card {
 let cards: Card[] = [];
 let templatesMissing = false;
 let byId = new Map<string, Card>();
-let visible: Card[] = []; // cards currently shown, in display order
-let current: Card | null = null; // card open in the viewer
+let visible: Entry[] = []; // cards currently shown, in display order
+let current: Entry | null = null; // card open in the viewer
 let shown: Duplicate | null = null; // file shown in the viewer: the template's or a duplicate's
+let shownFormat: DiagramFormat | null = null; // format of the diagram shown in the viewer
 
 function buildCard(t: Template): Card {
   const li = document.createElement('li');
@@ -129,7 +140,7 @@ function buildCard(t: Template): Card {
   if (t.cutFrom) a.classList.add('character');
   a.append(name, aka);
   li.append(a);
-  return { template: t, el: li, aka, keys: searchKeys(t), category: categoryOf(t) };
+  return { id: t.id, template: t, el: li, aka, keys: searchKeys(t), category: categoryOf(t) };
 }
 
 // First tile of the Backgrounds, opening the editor.
@@ -153,58 +164,178 @@ function buildCreateTile(): HTMLLIElement {
 const createTile = buildCreateTile();
 
 interface DiagramCard {
+  /** In the URL hash, like a template's id. */
+  id: string;
   diagram: Diagram;
   el: HTMLLIElement;
+  aka: HTMLSpanElement;
   keys: SearchKeys;
 }
 
-// A diagram's tile: its code, opening it in the editor, and links to open it
-// in the other formats.
+/** Something the viewer shows: a template (or character), or a diagram. */
+type Entry = Card | DiagramCard;
+const isDiagram = (e: Entry): e is DiagramCard => 'diagram' in e;
+
+// mermaid.ink answers 503 to a burst of requests: ask it for a few pictures
+// at a time, the viewer's first, and try again a few times, waiting longer
+// each time. A picture it has rendered once comes back fast. A request that
+// stalls is given up after a while, or it would hold its slot for good.
+const MAX_REQUESTS = 3;
+const RETRIES = 5;
+const TIMEOUT = 30_000;
+let requests = 0;
+const waiting: (() => void)[] = [];
+
+async function throttled<T>(job: () => Promise<T>, urgent: boolean): Promise<T> {
+  if (requests < MAX_REQUESTS) requests++;
+  else await new Promise<void>((resolve) => (urgent ? waiting.unshift(resolve) : waiting.push(resolve)));
+  try {
+    return await job();
+  } finally {
+    // The slot goes to the next job, or is freed.
+    const next = waiting.shift();
+    if (next) next();
+    else requests--;
+  }
+}
+
+/** An error that asking again won't fix. */
+class Final extends Error {}
+
+async function retried<T>(job: () => Promise<T>, urgent = false): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await throttled(job, urgent);
+    } catch (err) {
+      if (attempt >= RETRIES || err instanceof Final) throw err;
+      const delay = 1000 * 2 ** attempt * (0.5 + Math.random());
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+function fetchPicture(url: string): Promise<Response> {
+  return retried(async () => {
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
+    if (res.ok) return res;
+    // A 4xx is the diagram's fault.
+    throw new (res.status < 500 ? Final : Error)(`HTTP ${res.status}`);
+  }, true);
+}
+
+/** Loads a picture of mermaid.ink in an image, unless it leaves the page first. */
+function loadPicture(img: HTMLImageElement, src: string, urgent = false): void {
+  void retried(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        if (!img.isConnected) return resolve();
+        // A lazy image out of sight would hold its slot until it's seen.
+        img.loading = 'eager';
+        const settle = (err?: Error) => {
+          clearTimeout(timer);
+          img.onload = img.onerror = null;
+          if (!err) return resolve();
+          // Stops a stalled request, and shows no broken image until the next try.
+          img.removeAttribute('src');
+          reject(err);
+        };
+        const timer = setTimeout(() => settle(new Error('timed out')), TIMEOUT);
+        img.onload = () => settle();
+        img.onerror = () => settle(new Error('not loaded'));
+        img.src = src;
+      }),
+    urgent,
+  ).catch(() => {}); // the image stays empty
+}
+
+// Tiles load their picture as they come near the screen.
+const nearScreen = new IntersectionObserver(
+  (entries) => {
+    for (const { isIntersecting, target } of entries) {
+      if (!isIntersecting || !(target instanceof HTMLImageElement)) continue;
+      nearScreen.unobserve(target);
+      const src = target.dataset.src;
+      if (src) loadPicture(target, src);
+    }
+  },
+  { rootMargin: '600px 0px' },
+);
+
+const pictures = new Map<string, Promise<Pictures>>();
+function picturesOf(d: Diagram, format: DiagramFormat): Promise<Pictures> {
+  const key = `${d.id}/${format.id}`;
+  let p = pictures.get(key);
+  if (!p) pictures.set(key, (p = pictureUrls(d, format)));
+  return p;
+}
+
+interface Svg {
+  /** Object URL of the fetched SVG. */
+  url: string;
+  width: number;
+  height: number;
+}
+
+// The viewer fetches the SVG rather than pointing at it, to get its size: it's
+// only in the viewBox, the picture's width being 100%.
+const svgs = new Map<string, Promise<Svg>>();
+function svgOf(d: Diagram, format: DiagramFormat): Promise<Svg> {
+  const key = `${d.id}/${format.id}`;
+  let p = svgs.get(key);
+  if (!p) {
+    p = (async () => {
+      const text = await (await fetchPicture((await picturesOf(d, format)).svg)).text();
+      const [, , width = 0, height = 0] = (text.match(/viewBox="([^"]*)"/)?.[1] ?? '')
+        .split(/[\s,]+/)
+        .map(Number);
+      const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+      return { url, width: Math.round(width), height: Math.round(height) };
+    })();
+    p.catch(() => svgs.delete(key)); // try again next time
+    svgs.set(key, p);
+  }
+  return p;
+}
+
+// A diagram's tile: its picture in the default format. Its name is its type:
+// the example's name is its alias.
 function buildDiagramCard(d: Diagram): DiagramCard {
   const li = document.createElement('li');
-  const card = document.createElement('div');
-  card.className = 'card diagram';
+  const a = document.createElement('a');
+  a.className = 'card diagram';
+  a.href = `#diagrams/${d.id}`;
+  a.title = `${d.type}: ${d.name}`;
 
-  const open = document.createElement('a');
-  open.className = 'open';
-  open.href = editorUrl(d);
-  open.target = '_blank';
-  open.rel = 'noopener';
-  open.title = `Edit “${d.name}” in the Mermaid live editor`;
-  // Named after the diagram rather than its code, which the link contains.
-  open.ariaLabel = `${d.name}, ${d.type} diagram: edit it in the Mermaid live editor (new tab)`;
-  const code = document.createElement('pre');
-  code.textContent = d.code;
+  const img = document.createElement('img');
+  img.decoding = 'async';
+  img.alt = '';
+  void picturesOf(d, FORMATS[0]).then((p) => {
+    img.dataset.src = p.svg;
+    nearScreen.observe(img);
+  });
+
   const badge = document.createElement('span');
   badge.className = 'badge';
-  badge.textContent = d.type;
+  badge.textContent = 'Diagram';
+  badge.title = 'Mermaid diagram';
   const name = document.createElement('span');
   name.className = 'name';
-  name.textContent = d.name;
-  open.append(code, badge, name);
-
-  const formats = document.createElement('div');
-  formats.className = 'formats';
-  formats.role = 'group';
-  formats.ariaLabel = 'Open in another format';
-  for (const format of FORMATS.slice(1)) {
-    const a = document.createElement('a');
-    a.href = editorUrl(d, format);
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.title = `Edit “${d.name}” in the ${format.name} format`;
-    a.ariaLabel = `${format.name} format (new tab)`;
-    a.textContent = format.name;
-    formats.append(a);
-  }
-  card.append(open, formats);
-  li.append(card);
-  // The type is searchable too, and "diagram" or "mermaid" find them all.
-  return { diagram: d, el: li, keys: { name: fold(`${d.name} ${d.type} diagram mermaid`), aliases: [] } };
+  name.textContent = d.type;
+  const aka = document.createElement('span');
+  aka.className = 'aka';
+  aka.hidden = true;
+  a.append(img, badge, name, aka);
+  li.append(a);
+  // "diagram" or "mermaid" find them all. The alias has the type and keywords
+  // too, so that "C4 coffee" finds the C4 diagram of the coffee machine.
+  const keywords = `${d.type} diagram mermaid`;
+  const keys = { name: fold(keywords), aliases: [fold(`${d.name} ${keywords}`)] };
+  return { id: `diagrams/${d.id}`, diagram: d, el: li, aka, keys };
 }
 const diagramCards = DIAGRAMS.map(buildDiagramCard);
+const diagramById = new Map(diagramCards.map((c) => [c.id, c]));
 const diagramsByName = [...diagramCards].sort((a, b) =>
-  a.diagram.name.localeCompare(b.diagram.name, 'en', { sensitivity: 'base' }),
+  a.diagram.type.localeCompare(b.diagram.type, 'en', { sensitivity: 'base' }),
 );
 
 const sortKey = (): SortKey => (isSortKey(sort.value) ? sort.value : 'rank');
@@ -239,10 +370,12 @@ function render(): void {
   }
   // Diagrams come after the templates, in their own order unless by name.
   const diagrams = sortKey() === 'name' ? diagramsByName : diagramCards;
-  let diagramsShown = 0;
   for (const card of diagrams) {
-    card.el.hidden = !((!cat || cat === 'diagrams') && match(card.keys, words));
-    if (!card.el.hidden) diagramsShown++;
+    const found = !cat || cat === 'diagrams' ? match(card.keys, words) : null;
+    card.el.hidden = !found;
+    card.aka.hidden = !found || found.alias < 0;
+    if (found && found.alias > -1) card.aka.textContent = `aka ${card.diagram.name}`;
+    if (found) visible.push(card);
   }
   const create = cat === 'background' && !words.length;
   grid.replaceChildren(
@@ -252,7 +385,7 @@ function render(): void {
   );
 
   const total = cards.length + diagramCards.length;
-  const shown = visible.length + diagramsShown;
+  const shown = visible.length;
   count.textContent =
     shown === total ? `${fmt.format(total)} templates` : `${fmt.format(shown)} of ${fmt.format(total)}`;
   const hint = templatesMissing && cat !== 'diagrams';
@@ -315,19 +448,21 @@ function display(card: Card, t: Duplicate): void {
   downloadLink.href = imgUrl(t);
   downloadLink.download = t.file.split('/').pop() ?? t.file;
   sourceLink.href = t.source.pageUrl;
+  sourceLink.textContent = 'View on imgflip';
   for (const li of formatList.children) {
     const button = li.firstElementChild;
     if (button instanceof HTMLElement) button.ariaCurrent = button.dataset.file === t.file ? 'true' : null;
   }
 }
 
-function relatedItem(media: Duplicate, label: string, detail: string): HTMLLIElement {
+// An alternative's tile, with its picture, or without for now when it's null.
+function relatedItem(src: string | null, label: string, detail: string): HTMLLIElement {
   const li = document.createElement('li');
   const img = document.createElement('img');
   img.loading = 'lazy';
   img.decoding = 'async';
   img.alt = '';
-  img.src = thumbUrl(media);
+  if (src) img.src = src;
   const name = document.createElement('span');
   name.className = 'name';
   name.textContent = label;
@@ -348,7 +483,7 @@ function renderRelated(card: Card): void {
 
   formatList.replaceChildren(
     ...(withDuplicates ? [t, ...duplicates] : []).map((d) => {
-      const li = relatedItem(d, d === t ? 'Main' : d.name, size(d));
+      const li = relatedItem(thumbUrl(d), d === t ? 'Main' : d.name, size(d));
       const button = document.createElement('button');
       button.type = 'button';
       button.dataset.file = d.file;
@@ -361,7 +496,7 @@ function renderRelated(card: Card): void {
   variationList.replaceChildren(
     ...variants.map((v) => {
       const detail = size(v.template) + (v.template.cutFrom ? ' · character' : '');
-      const li = relatedItem(v.template, v.template.name, detail);
+      const li = relatedItem(thumbUrl(v.template), v.template.name, detail);
       const a = document.createElement('a');
       a.href = `#${v.template.id}`;
       a.title = v.template.name;
@@ -384,6 +519,94 @@ function renderRelated(card: Card): void {
   setPanel(panelOpen, available);
 }
 
+// Shows a diagram in a format: its picture, and links to it and to edit it.
+function displayDiagram(card: DiagramCard, format: DiagramFormat): void {
+  const d = card.diagram;
+  shownFormat = format;
+  const stale = () => current !== card || shownFormat !== format;
+  big.hidden = false;
+  bigVideo.hidden = true;
+  bigVideo.removeAttribute('src');
+  bigVideo.load();
+  big.removeAttribute('src');
+  big.alt = `${d.type} diagram: ${d.name}`;
+  const meta = `Mermaid diagram · ${format.name} format`;
+  $('meta').textContent = `${meta} · rendering…`;
+  // Until the links are ready, they lead to the editor.
+  sourceLink.href = openLink.href = downloadLink.href = editorUrl(d, format);
+  sourceLink.textContent = 'Edit in mermaid.live';
+  downloadLink.download = `${d.id}-${format.id}.png`;
+  for (const li of formatList.children) {
+    const button = li.firstElementChild;
+    if (button instanceof HTMLElement)
+      button.ariaCurrent = button.dataset.format === format.id ? 'true' : null;
+  }
+  void picturesOf(d, format).then((p) => {
+    if (stale()) return;
+    openLink.href = p.svg;
+    downloadLink.href = p.png;
+  });
+  svgOf(d, format).then(
+    (svg) => {
+      if (stale()) return;
+      big.style.maxWidth = `${svg.width}px`;
+      big.style.maxHeight = `${svg.height}px`;
+      big.src = svg.url;
+      $('meta').textContent = `${meta} · ${svg.width} × ${svg.height} · SVG`;
+    },
+    (err: unknown) => {
+      if (!stale())
+        $('meta').textContent = `${meta} · mermaid.ink could not render it (${(err as Error).message})`;
+    },
+  );
+}
+
+// Fills the alternatives panel for a diagram: its formats.
+function renderDiagramRelated(card: DiagramCard): void {
+  const d = card.diagram;
+  formatList.replaceChildren(
+    ...FORMATS.map((f) => {
+      const li = relatedItem(null, f.name, f.description);
+      const img = li.querySelector('img')!;
+      void picturesOf(d, f).then((p) => loadPicture(img, p.svg, true));
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.format = f.id;
+      button.title = `${d.type} in the ${f.name} format`;
+      button.append(...li.childNodes);
+      li.append(button);
+      return li;
+    }),
+  );
+  variationList.replaceChildren();
+  formats.hidden = false;
+  variations.hidden = true;
+  relatedEmpty.hidden = true;
+  showDuplicates.parentElement!.hidden = true;
+  // Counted like a template's duplicates: the other formats.
+  relatedToggle.hidden = false;
+  relatedCount.textContent = `(${FORMATS.length - 1})`;
+  setPanel(panelOpen, true);
+}
+
+// Downloads the PNG: it's on another site, which a download link can't do.
+async function downloadDiagram(d: Diagram, format: DiagramFormat): Promise<void> {
+  const { png } = await picturesOf(d, format);
+  downloadLink.ariaBusy = 'true';
+  try {
+    const blob = await (await fetchPicture(png)).blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${d.id}-${format.id}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+  } catch {
+    window.open(png, '_blank', 'noopener');
+  } finally {
+    downloadLink.ariaBusy = null;
+  }
+}
+
 function setPanel(open: boolean, available = !relatedToggle.hidden): void {
   related.hidden = !(open && available);
   relatedToggle.ariaExpanded = String(open && available);
@@ -397,20 +620,29 @@ function togglePanel(): void {
   setPanel(panelOpen);
 }
 
-function show(card: Card): void {
-  const t = card.template;
+function show(card: Entry): void {
   current = card;
-  $('title').textContent = t.name;
-  aliasesEl.textContent = t.aliases.length ? `Also known as: ${t.aliases.join(', ')}` : '';
-  aliasesEl.hidden = !t.aliases.length;
-  renderRelated(card);
-  display(card, t);
+  let aliases: string[];
+  if (isDiagram(card)) {
+    $('title').textContent = card.diagram.type;
+    aliases = [card.diagram.name];
+    renderDiagramRelated(card);
+    displayDiagram(card, FORMATS[0]);
+  } else {
+    const t = card.template;
+    $('title').textContent = t.name;
+    aliases = t.aliases;
+    renderRelated(card);
+    display(card, t);
+  }
+  aliasesEl.textContent = aliases.length ? `Also known as: ${aliases.join(', ')}` : '';
+  aliasesEl.hidden = !aliases.length;
   related.scrollTop = 0;
 
   const many = visible.length > 1 && visible.includes(card);
   prev.hidden = next.hidden = !many;
 
-  setHash(t.id);
+  setHash(card.id);
   if (!viewer.open) viewer.showModal();
 }
 
@@ -428,7 +660,7 @@ function openFromHash(): void {
   }
   if (editor.isOpen) editor.close();
   const id = decodeURIComponent(location.hash.slice(1));
-  const card = id ? byId.get(id) : undefined;
+  const card = id ? (byId.get(id) ?? diagramById.get(id)) : undefined;
   if (card) show(card);
   else if (viewer.open) viewer.close();
 }
@@ -436,7 +668,8 @@ function openFromHash(): void {
 grid.addEventListener('click', (e) => {
   const link = (e.target as Element).closest('.card');
   if (!link || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
-  const card = cards.find((c) => c.el === link.parentElement);
+  const li = link.parentElement;
+  const card = cards.find((c) => c.el === li) ?? diagramCards.find((c) => c.el === li);
   if (!card) return; // the create tile follows its link to the editor
   e.preventDefault();
   show(card);
@@ -446,15 +679,20 @@ relatedToggle.addEventListener('click', togglePanel);
 $('relatedClose').addEventListener('click', togglePanel);
 showDuplicates.addEventListener('change', () => {
   prefs.set('duplicates', showDuplicates.checked);
-  if (!current) return;
+  if (!current || isDiagram(current)) return;
   renderRelated(current);
   // A duplicate on show goes back to the template's own file when hidden.
   display(current, showDuplicates.checked && shown ? shown : current.template);
 });
 formatList.addEventListener('click', (e) => {
-  const button = (e.target as Element).closest<HTMLElement>('button[data-file]');
-  const t = current?.template;
-  if (!button || !current || !t) return;
+  const button = (e.target as Element).closest<HTMLElement>('button[data-file], button[data-format]');
+  if (!button || !current) return;
+  if (isDiagram(current)) {
+    const format = FORMATS.find((f) => f.id === button.dataset.format);
+    if (format) displayDiagram(current, format);
+    return;
+  }
+  const t = current.template;
   const file = button.dataset.file;
   display(current, [t, ...(t.duplicates ?? [])].find((d) => d.file === file) ?? t);
 });
@@ -465,6 +703,11 @@ variationList.addEventListener('click', (e) => {
   const card = byId.get(decodeURIComponent(link.hash.slice(1)));
   if (card) show(card);
 });
+downloadLink.addEventListener('click', (e) => {
+  if (!current || !isDiagram(current) || !shownFormat || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  if (!downloadLink.ariaBusy) void downloadDiagram(current.diagram, shownFormat);
+});
 prev.addEventListener('click', () => step(-1));
 next.addEventListener('click', () => step(1));
 viewer.addEventListener('click', (e) => {
@@ -473,6 +716,7 @@ viewer.addEventListener('click', (e) => {
 viewer.addEventListener('close', () => {
   current = null;
   shown = null;
+  shownFormat = null;
   big.removeAttribute('src');
   bigVideo.removeAttribute('src');
   bigVideo.load();
