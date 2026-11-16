@@ -70,9 +70,24 @@ with sharp and cached in `data/thumbs/`.
 
 The category menu filters the list: GIFs (animated templates), Complete (every
 other template), Backgrounds (blank pages, plain colours), Formats (empty panel
-layouts) and Characters (the transparent cut-outs from `data/characters/`,
-linked to their template as variants). Backgrounds and Formats are listed by
-template id in `client/categories.ts`.
+layouts), Characters (the transparent cut-outs from `data/characters/`,
+linked to their template as variants) and Diagrams (see below). Backgrounds and
+Formats are listed by template id in `client/categories.ts`.
+
+### Diagrams
+
+The Diagrams category has no pictures: each tile shows the [Mermaid](https://mermaid.js.org)
+code of a funny take on one of the sample diagrams of the [Mermaid live editor](https://mermaid.live)
+(a flowchart deciding whether to deploy on Friday, a sequence diagram of a code review,
+a Venn diagram of fast, cheap and good…), one per diagram type. Clicking it opens it in
+the editor, in a new tab, ready to be edited and exported. The links under it open it
+in another format: a look (hand-drawn, neo) or a theme (dark, forest, neutral) set in
+the editor's Config tab. The diagram and its config travel in the link itself, so it
+works without the server or any template.
+
+The examples and formats are in `client/diagrams.ts`. Each was checked against
+Mermaid 12's parser and renderer, in every format: do the same for a new one by
+pasting it in the editor.
 
 ### Create a background
 

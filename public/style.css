@@ -212,6 +212,54 @@ h1 {
 .card.create .name {
   color: var(--accent-text);
 }
+/* Diagram tiles: the Mermaid code instead of a picture, then the formats. */
+.card.diagram {
+  display: flex;
+  flex-direction: column;
+}
+.card.diagram .open {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.card.diagram pre {
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 32px 10px 10px;
+  overflow: hidden;
+  background: var(--tile);
+  color: var(--muted);
+  font:
+    10px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  mask-image: linear-gradient(to bottom, #000 65%, transparent);
+}
+.card.diagram .open:hover pre {
+  color: var(--text);
+}
+.card.diagram .formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: auto;
+  padding: 0 10px 10px;
+}
+.card.diagram .formats a {
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 18px;
+  text-decoration: none;
+}
+.card.diagram .formats a:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
 #empty {
   padding: 64px 20px;
   text-align: center;

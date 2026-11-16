@@ -1,6 +1,7 @@
 // What a template is, for the category filter. Animated templates are GIFs,
 // characters cut out of templates are Characters and unlisted templates are
-// complete memes; the other categories are curated by id.
+// complete memes; the other categories are curated by id. Diagrams aren't
+// templates: they're the Mermaid examples of diagrams.ts.
 
 import type { Template } from './templates.ts';
 
@@ -10,11 +11,15 @@ export const CATEGORIES = {
   background: 'Backgrounds',
   format: 'Formats',
   characters: 'Characters',
+  diagrams: 'Diagrams',
 } as const;
 
 export type Category = keyof typeof CATEGORIES;
 
-const CURATED: Record<Exclude<Category, 'gifs' | 'complete' | 'characters'>, readonly string[]> = {
+const CURATED: Record<
+  Exclude<Category, 'gifs' | 'complete' | 'characters' | 'diagrams'>,
+  readonly string[]
+> = {
   // Blank pages, plain colours, frames.
   background: [
     'black-background',

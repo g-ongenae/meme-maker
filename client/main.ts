@@ -2,9 +2,12 @@
 // dialog with a side panel of alternatives: the template's other formats (the
 // duplicates merged into it) and its variations (related templates, and the
 // characters cut out of it). Characters are listed as templates of their own.
+// Diagrams aren't templates: their tiles show Mermaid code and open it in the
+// Mermaid live editor, in the format picked on the tile.
 
 import { type Category, CATEGORIES, categoryOf, isCategory } from './categories.ts';
 import { type Character, withCharacters } from './characters.ts';
+import { type Diagram, DIAGRAMS, FORMATS, editorUrl } from './diagrams.ts';
 import { $ } from './dom.ts';
 import { createEditor, isEditorHash } from './editor.ts';
 import {
@@ -13,6 +16,7 @@ import {
   type SortKey,
   type Template,
   SORTS,
+  fold,
   imgUrl,
   isSortKey,
   match,
@@ -83,6 +87,7 @@ interface Card {
 }
 
 let cards: Card[] = [];
+let templatesMissing = false;
 let byId = new Map<string, Card>();
 let visible: Card[] = []; // cards currently shown, in display order
 let current: Card | null = null; // card open in the viewer
@@ -147,12 +152,67 @@ function buildCreateTile(): HTMLLIElement {
 }
 const createTile = buildCreateTile();
 
+interface DiagramCard {
+  diagram: Diagram;
+  el: HTMLLIElement;
+  keys: SearchKeys;
+}
+
+// A diagram's tile: its code, opening it in the editor, and links to open it
+// in the other formats.
+function buildDiagramCard(d: Diagram): DiagramCard {
+  const li = document.createElement('li');
+  const card = document.createElement('div');
+  card.className = 'card diagram';
+
+  const open = document.createElement('a');
+  open.className = 'open';
+  open.href = editorUrl(d);
+  open.target = '_blank';
+  open.rel = 'noopener';
+  open.title = `Edit “${d.name}” in the Mermaid live editor`;
+  // Named after the diagram rather than its code, which the link contains.
+  open.ariaLabel = `${d.name}, ${d.type} diagram: edit it in the Mermaid live editor (new tab)`;
+  const code = document.createElement('pre');
+  code.textContent = d.code;
+  const badge = document.createElement('span');
+  badge.className = 'badge';
+  badge.textContent = d.type;
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = d.name;
+  open.append(code, badge, name);
+
+  const formats = document.createElement('div');
+  formats.className = 'formats';
+  formats.role = 'group';
+  formats.ariaLabel = 'Open in another format';
+  for (const format of FORMATS.slice(1)) {
+    const a = document.createElement('a');
+    a.href = editorUrl(d, format);
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.title = `Edit “${d.name}” in the ${format.name} format`;
+    a.ariaLabel = `${format.name} format (new tab)`;
+    a.textContent = format.name;
+    formats.append(a);
+  }
+  card.append(open, formats);
+  li.append(card);
+  // The type is searchable too, and "diagram" or "mermaid" find them all.
+  return { diagram: d, el: li, keys: { name: fold(`${d.name} ${d.type} diagram mermaid`), aliases: [] } };
+}
+const diagramCards = DIAGRAMS.map(buildDiagramCard);
+const diagramsByName = [...diagramCards].sort((a, b) =>
+  a.diagram.name.localeCompare(b.diagram.name, 'en', { sensitivity: 'base' }),
+);
+
 const sortKey = (): SortKey => (isSortKey(sort.value) ? sort.value : 'rank');
 const selectedCategory = (): Category | null => (isCategory(category.value) ? category.value : null);
 
 function fillCategories(): void {
   for (const [key, label] of Object.entries(CATEGORIES)) {
-    const n = cards.filter((c) => c.category === key).length;
+    const n = key === 'diagrams' ? diagramCards.length : cards.filter((c) => c.category === key).length;
     category.append(new Option(`${label} (${fmt.format(n)})`, key));
   }
 }
@@ -177,15 +237,30 @@ function render(): void {
     if (alias > -1) card.aka.textContent = `aka ${card.template.aliases[alias]}`;
     if (found) visible.push(card);
   }
+  // Diagrams come after the templates, in their own order unless by name.
+  const diagrams = sortKey() === 'name' ? diagramsByName : diagramCards;
+  let diagramsShown = 0;
+  for (const card of diagrams) {
+    card.el.hidden = !((!cat || cat === 'diagrams') && match(card.keys, words));
+    if (!card.el.hidden) diagramsShown++;
+  }
   const create = cat === 'background' && !words.length;
-  grid.replaceChildren(...(create ? [createTile] : []), ...ordered.map((c) => c.el));
+  grid.replaceChildren(
+    ...(create ? [createTile] : []),
+    ...ordered.map((c) => c.el),
+    ...diagrams.map((c) => c.el),
+  );
 
+  const total = cards.length + diagramCards.length;
+  const shown = visible.length + diagramsShown;
   count.textContent =
-    visible.length === cards.length
-      ? `${fmt.format(cards.length)} templates`
-      : `${fmt.format(visible.length)} of ${fmt.format(cards.length)}`;
-  empty.hidden = visible.length > 0;
-  if (!visible.length) empty.textContent = emptyMessage(search.value.trim(), cat);
+    shown === total ? `${fmt.format(total)} templates` : `${fmt.format(shown)} of ${fmt.format(total)}`;
+  const hint = templatesMissing && cat !== 'diagrams';
+  empty.hidden = shown > 0 && !hint;
+  if (hint)
+    empty.innerHTML =
+      'No templates found. Run <code>npm run fetch:imgflip</code> then <code>npm run dedupe</code>, and reload.';
+  else if (!shown) empty.textContent = emptyMessage(search.value.trim(), cat);
 
   const url = new URL(location.href);
   if (search.value.trim()) url.searchParams.set('q', search.value.trim());
@@ -423,16 +498,12 @@ sort.addEventListener('change', render);
 
 async function init(): Promise<void> {
   const [res, charactersRes] = await Promise.all([fetch('/api/templates'), fetch('/api/characters')]);
-  if (!res.ok) {
-    empty.hidden = false;
-    empty.innerHTML =
-      'No templates found. Run <code>npm run fetch:imgflip</code> then <code>npm run dedupe</code>, and reload.';
-    openFromHash(); // the editor works without templates
-    return;
-  }
+  // Without templates, the diagrams and the editor still work.
+  templatesMissing = !res.ok;
   // Characters are optional: `npm run extract:characters` makes them.
   const characters = charactersRes.ok ? ((await charactersRes.json()) as Character[]) : [];
-  cards = withCharacters((await res.json()) as Template[], characters).map(buildCard);
+  const templates = res.ok ? ((await res.json()) as Template[]) : [];
+  cards = withCharacters(templates, characters).map(buildCard);
   byId = new Map(cards.map((c) => [c.template.id, c]));
   editor.setLibrary(cards.map((c) => c.template));
   fillCategories();

@@ -38,6 +38,7 @@ describe('isCategory', () => {
   it('validates category keys', () => {
     assert.ok(isCategory('format'));
     assert.ok(isCategory('characters'));
+    assert.ok(isCategory('diagrams'));
     assert.ok(!isCategory('additions'));
     assert.ok(!isCategory('toString'));
     assert.ok(!isCategory(null));
