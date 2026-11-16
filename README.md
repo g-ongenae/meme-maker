@@ -76,14 +76,17 @@ Formats are listed by template id in `client/categories.ts`.
 
 ### Diagrams
 
-The Diagrams category has no pictures: each tile shows the [Mermaid](https://mermaid.js.org)
-code of a funny take on one of the sample diagrams of the [Mermaid live editor](https://mermaid.live)
-(a flowchart deciding whether to deploy on Friday, a sequence diagram of a code review,
-a Venn diagram of fast, cheap and good…), one per diagram type. Clicking it opens it in
-the editor, in a new tab, ready to be edited and exported. The links under it open it
-in another format: a look (hand-drawn, neo) or a theme (dark, forest, neutral) set in
-the editor's Config tab. The diagram and its config travel in the link itself, so it
-works without the server or any template.
+The Diagrams category holds funny takes on the sample diagrams of the
+[Mermaid live editor](https://mermaid.live), one per diagram type (a flowchart deciding
+whether to deploy on Friday, a sequence diagram of a code review, a Venn diagram of fast,
+cheap and good…). Each tile is named after its diagram type, and shows the diagram as
+rendered by [mermaid.ink](https://mermaid.ink); the example's name is its alias. It opens
+in the viewer like a template, with its formats as alternatives: a look (hand-drawn, neo)
+or a theme (dark, forest, neutral), set in Mermaid's config. “Open original” opens the
+SVG, “Download” saves a PNG, and “Edit in mermaid.live” opens the diagram, in the format
+on show, in the editor. The diagram and its config travel in the links themselves, so it
+works without any template. mermaid.ink turns away bursts of requests, so the page asks
+for three pictures at a time, and tries again when turned away.
 
 The examples and formats are in `client/diagrams.ts`. Each was checked against
 Mermaid 12's parser and renderer, in every format: do the same for a new one by

@@ -1,6 +1,15 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { type Diagram, DIAGRAMS, EDITOR_URL, FORMATS, editorUrl } from './diagrams.ts';
+import { inflateSync } from 'node:zlib';
+import {
+  type Diagram,
+  DIAGRAMS,
+  EDITOR_URL,
+  FORMATS,
+  RENDER_URL,
+  editorUrl,
+  pictureUrls,
+} from './diagrams.ts';
 
 const diagram: Diagram = {
   id: 'test',
@@ -41,6 +50,35 @@ describe('editorUrl', () => {
   });
 });
 
+// What mermaid.ink does with a pako link: inflate it, then read the config.
+function readPicture(url: string): { path: string; query: URLSearchParams; code: string; config: unknown } {
+  const { origin, pathname, searchParams } = new URL(url);
+  assert.equal(origin, RENDER_URL);
+  const [, path, data] = pathname.split('/');
+  assert.match(data, /^pako:[\w-]+$/);
+  const state = JSON.parse(inflateSync(Buffer.from(data.slice(5), 'base64url')).toString('utf8')) as {
+    code: string;
+    mermaid: string;
+  };
+  return { path, query: searchParams, code: state.code, config: JSON.parse(state.mermaid) };
+}
+
+describe('pictureUrls', () => {
+  it('render the code as SVG and PNG, in the format and on its background', async () => {
+    const dark = FORMATS.find((f) => f.id === 'dark')!;
+    const { svg, png } = await pictureUrls(diagram, dark);
+    const s = readPicture(svg);
+    assert.equal(s.path, 'svg');
+    assert.equal(s.code, diagram.code);
+    assert.deepEqual(s.config, { theme: 'neo-dark' });
+    assert.equal(s.query.get('bgColor'), dark.background);
+    const p = readPicture(png);
+    assert.equal(p.path, 'img');
+    assert.equal(p.code, diagram.code);
+    assert.equal(p.query.get('type'), 'png');
+  });
+});
+
 describe('DIAGRAMS', () => {
   it('have unique ids and names', () => {
     assert.equal(new Set(DIAGRAMS.map((d) => d.id)).size, DIAGRAMS.length);
@@ -57,5 +95,9 @@ describe('FORMATS', () => {
     assert.equal(FORMATS[0].id, 'default');
     assert.deepEqual(FORMATS[0].config, {});
     assert.equal(new Set(FORMATS.map((f) => f.id)).size, FORMATS.length);
+  });
+
+  it('have a hex background, as mermaid.ink takes it', () => {
+    for (const f of FORMATS) assert.match(f.background, /^[\da-f]{6}$/, f.id);
   });
 });
