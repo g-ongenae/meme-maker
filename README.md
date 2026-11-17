@@ -63,7 +63,7 @@ npm start               # builds the client, then http://127.0.0.1:4321 (overrid
 
 A dependency-free Node server (`server/`) serving the page in `public/` (`index.html`
 and `style.css`) and its script, compiled from `client/` to `dist/client/`, to search,
-sort and view the templates in `data/templates/`. The viewer's alternatives panel
+sort and view the templates in `data/templates/`, and to [make memes](#make-a-meme) of them. The viewer's alternatives panel
 (button or <kbd>A</kbd>) lists the template's other formats (its duplicates, which a
 switch can hide) and its variations. Thumbnails are rendered on demand
 with sharp and cached in `data/thumbs/`.
@@ -73,6 +73,41 @@ other template), Backgrounds (blank pages, plain colours), Formats (empty panel
 layouts), Characters (the transparent cut-outs from `data/characters/`,
 linked to their template as variants) and Diagrams (see below). Backgrounds and
 Formats are listed by template id in `client/categories.ts`.
+
+### Make a meme
+
+“Edit” in the viewer (or <kbd>E</kbd>, or `#edit/<template id>` in the address bar) opens the
+template on show in an editor, drawn on a canvas in the browser. It starts with a text at
+the top and one at the bottom: type, and download.
+
+- **Texts**: each has a field in the panel and a box on the picture. Drag the box to move
+  it (it snaps to the middle of the picture, unless <kbd>Alt</kbd> is held), its corners to
+  resize it and the handle above it to rotate it; the arrow keys nudge it and
+  <kbd>Delete</kbd> removes it. A text wraps in its box, and shrinks to fit it. Typing on a
+  box, or double-clicking it, goes to its field.
+- **Text style**: “Classic” (white Impact capitals with a black outline), “Plain” (black
+  Arial) or “Label” (bold white with an outline), or its own font, size, colours, outline,
+  alignment, capitals and rotation. “Apply style to all” gives it to every text.
+- “Add caption above” adds white space over the picture with a plain text in it, the way
+  memes are captioned nowadays. “Space around” sets that space on each side, and its colour.
+- **Images** go on top, under the texts: a character from the Characters category, or
+  uploaded, dropped or pasted ones. They’re moved, resized and rotated like the texts, and
+  can be flipped.
+- Undo and redo (<kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>),
+  “Copy” to the clipboard and “Download PNG”, at the picture’s own size or at a width.
+- The meme is kept in the URL hash, so it can be bookmarked or shared (uploaded images stay
+  local), and comes back when the template is edited again. The viewer’s alternatives are
+  edited too: `f` in the hash is the duplicate’s file. Of an animated template, it’s the
+  still that is edited.
+- “Add text…” in the [background editor](#create-a-background) makes a meme of the
+  background made there.
+
+Impact is rarely installed outside Windows and macOS, so the page falls back on
+[Anton](https://fonts.google.com/specimen/Anton), which looks like it, served from the
+`@fontsource/anton` package (SIL Open Font License).
+
+The model, its URL encoding, the fitting of texts, the geometry of layers and the drawing
+are in `client/meme.ts` (DOM-free, tested), and the dialog in `client/meme-editor.ts`.
 
 ### Diagrams
 
@@ -109,7 +144,8 @@ in the style of advice-animal templates, drawn on a canvas in the browser:
 - An image goes on top: a character from the Characters category, or an uploaded,
   dropped or pasted one (a PNG with a transparent background works best). Drag it to
   move it, and set its size and a white halo.
-- “Download PNG” saves the result. The design is kept in the URL hash, so it can be
+- “Download PNG” saves the result, and “Add text…” opens it in the
+  [meme editor](#make-a-meme). The design is kept in the URL hash, so it can be
   bookmarked or shared (an uploaded image stays local).
 
 The model, its URL encoding, the presets and the drawing are in `client/background.ts`

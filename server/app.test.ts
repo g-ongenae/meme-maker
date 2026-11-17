@@ -64,13 +64,14 @@ describe('createApp', () => {
   const index = [{ id: 'drake', name: 'Drake' }];
   const characters = [{ id: 'dog', name: 'Dog', file: 'dog.png', template: 'drake' }];
   const video = Buffer.from('0123456789abcdef');
+  const FONTS = 'node_modules/@fontsource/anton/files';
 
   before(async () => {
     root = await mkdtemp(path.join(tmpdir(), 'meme-maker-'));
     const templates = path.join(root, 'data/templates');
     const charactersDir = path.join(root, 'data/characters');
     await Promise.all(
-      ['public', 'assets', 'dist/client', 'data/templates', 'data/characters'].map((d) =>
+      ['public', 'assets', 'dist/client', 'data/templates', 'data/characters', FONTS].map((d) =>
         mkdir(path.join(root, d), { recursive: true }),
       ),
     );
@@ -79,6 +80,9 @@ describe('createApp', () => {
       writeFile(path.join(root, 'public/style.css'), 'body {}'),
       writeFile(path.join(root, 'assets/icon.svg'), '<svg/>'),
       writeFile(path.join(root, 'dist/client/main.js'), 'export {};'),
+      writeFile(path.join(root, FONTS, 'anton-latin-400-normal.woff2'), 'latin'),
+      writeFile(path.join(root, FONTS, 'anton-latin-ext-400-normal.woff2'), 'latin-ext'),
+      writeFile(path.join(root, FONTS, 'anton-vietnamese-400-normal.woff2'), 'vietnamese'),
       writeFile(path.join(templates, 'index.json'), JSON.stringify(index)),
       writeFile(path.join(templates, 'kid.mp4'), video),
       sharp({ create: { width: 800, height: 600, channels: 3, background: '#e11d48' } })
@@ -115,6 +119,17 @@ describe('createApp', () => {
       assert.equal(res.headers.get('content-type'), type, url);
       await res.arrayBuffer();
     }
+  });
+
+  it('serves the font of the meme editor, in the subsets the page uses', async () => {
+    for (const subset of ['latin', 'latin-ext']) {
+      const res = await get(`/fonts/anton-${subset}.woff2`);
+      assert.equal(res.status, 200, subset);
+      assert.equal(res.headers.get('content-type'), 'font/woff2', subset);
+      assert.equal(await res.text(), subset);
+    }
+    for (const url of ['/fonts/anton-vietnamese.woff2', '/fonts/anton-latin.woff', '/fonts/..%2Fx.woff2'])
+      assert.equal((await get(url)).status, 404, url);
   });
 
   it('serves the template index', async () => {

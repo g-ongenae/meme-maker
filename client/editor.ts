@@ -2,6 +2,7 @@
 // background.ts) and its controls, with an image on top: a library template
 // (the characters) or one the user uploads. The design is kept in the URL hash
 // (#editor?…) so it can be bookmarked or shared; uploaded images stay local.
+// "Add text…" hands the result to the meme editor (meme-editor.ts).
 
 import {
   type Background,
@@ -45,7 +46,14 @@ export interface Editor {
   setLibrary(templates: Template[]): void;
 }
 
-export function createEditor({ onClose }: { onClose(): void }): Editor {
+export function createEditor({
+  onClose,
+  onCaption,
+}: {
+  onClose(): void;
+  /** Asked to make a meme of the background, given as a PNG. */
+  onCaption(picture: Blob): void;
+}): Editor {
   const dialog = $<HTMLDialogElement>('editor');
   const stage = $('editorStage');
   const wrap = $('editorCanvas');
@@ -332,6 +340,13 @@ export function createEditor({ onClose }: { onClose(): void }): Editor {
     }, 'image/png');
   });
 
+  $('editorCaption').addEventListener('click', () => {
+    render();
+    canvas.toBlob((blob) => {
+      if (blob) onCaption(blob);
+    }, 'image/png');
+  });
+
   $('editorClose').addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => {
     clearTimeout(saveTimer);
@@ -384,7 +399,8 @@ export function createEditor({ onClose }: { onClose(): void }): Editor {
     useUpload(e.dataTransfer?.files[0]);
   });
   document.addEventListener('paste', (e) => {
-    if (!dialog.open) return;
+    // Not when the meme editor, open on top, took it.
+    if (!dialog.open || e.defaultPrevented) return;
     const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'));
     if (!file) return;
     e.preventDefault();

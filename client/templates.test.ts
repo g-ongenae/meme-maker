@@ -10,6 +10,7 @@ import {
   match,
   searchKeys,
   searchWords,
+  stillUrl,
   thumbUrl,
 } from './templates.ts';
 
@@ -55,6 +56,15 @@ describe('urls', () => {
     const t = template({ file: 'x.mp4', poster: 'x.poster.jpg', animated: true });
     assert.equal(imgUrl(t), '/img/x.mp4');
     assert.equal(thumbUrl(t), '/thumb/x.poster.jpg');
+  });
+
+  it('draws on the image itself, or on the poster of an animated template', () => {
+    assert.equal(stillUrl(template({ file: 'a b.jpg' })), '/img/a%20b.jpg');
+    assert.equal(
+      stillUrl(template({ file: 'x.mp4', poster: 'x.poster.jpg', animated: true })),
+      '/img/x.poster.jpg',
+    );
+    assert.equal(stillUrl(template({ file: 'x.mp4', animated: true })), null);
   });
 });
 
