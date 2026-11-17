@@ -6,6 +6,7 @@ import {
   fold,
   imgUrl,
   isSortKey,
+  kymUrl,
   match,
   searchKeys,
   searchWords,
@@ -96,5 +97,15 @@ describe('SORTS', () => {
     assert.ok(isSortKey('name'));
     assert.ok(!isSortKey('toString'));
     assert.ok(!isSortKey(null));
+  });
+});
+
+describe('kymUrl', () => {
+  it('searches Know Your Meme for the name', () => {
+    assert.equal(kymUrl('Drake Hotline Bling'), 'https://knowyourmeme.com/search?q=Drake+Hotline+Bling');
+    assert.equal(
+      kymUrl('Is this a pigeon? & co'),
+      'https://knowyourmeme.com/search?q=Is+this+a+pigeon%3F+%26+co',
+    );
   });
 });

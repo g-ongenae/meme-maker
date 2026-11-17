@@ -55,6 +55,13 @@ export const imgUrl = (t: Media): string => `/img/${encodePath(t.file)}`;
 // Animated templates are .mp4 files: their thumbnail comes from the poster.
 export const thumbUrl = (t: Media): string => `/thumb/${encodePath(t.poster ?? t.file)}`;
 
+/**
+ * The meme's page on Know Your Meme, found by searching its name: its pages are
+ * named after the meme, not the template, so there's no direct link to it.
+ */
+export const kymUrl = (name: string): string =>
+  `https://knowyourmeme.com/search?${new URLSearchParams({ q: name })}`;
+
 export const SORTS = {
   rank: (a: Template, b: Template) => a.rank - b.rank,
   name: (a: Template, b: Template) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }),

@@ -28,6 +28,7 @@ import {
   fold,
   imgUrl,
   isSortKey,
+  kymUrl,
   match,
   searchKeys,
   searchWords,
@@ -49,6 +50,7 @@ const aliasesEl = $<HTMLParagraphElement>('aliases');
 const openLink = $<HTMLAnchorElement>('open');
 const downloadLink = $<HTMLAnchorElement>('download');
 const sourceLink = $<HTMLAnchorElement>('source');
+const kymLink = $<HTMLAnchorElement>('kym');
 const related = $('related');
 const relatedToggle = $<HTMLButtonElement>('relatedToggle');
 const relatedCount = $('relatedCount');
@@ -449,6 +451,9 @@ function display(card: Card, t: Duplicate): void {
   downloadLink.download = t.file.split('/').pop() ?? t.file;
   sourceLink.href = t.source.pageUrl;
   sourceLink.textContent = 'View on imgflip';
+  // A character is looked up by the meme it was cut out of.
+  kymLink.href = kymUrl((from ?? card.template).name);
+  kymLink.hidden = false;
   for (const li of formatList.children) {
     const button = li.firstElementChild;
     if (button instanceof HTMLElement) button.ariaCurrent = button.dataset.file === t.file ? 'true' : null;
@@ -535,6 +540,7 @@ function displayDiagram(card: DiagramCard, format: DiagramFormat): void {
   // Until the links are ready, they lead to the editor.
   sourceLink.href = openLink.href = downloadLink.href = editorUrl(d, format);
   sourceLink.textContent = 'Edit in mermaid.live';
+  kymLink.hidden = true;
   downloadLink.download = `${d.id}-${format.id}.png`;
   for (const li of formatList.children) {
     const button = li.firstElementChild;
