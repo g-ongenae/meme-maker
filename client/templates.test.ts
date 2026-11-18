@@ -133,18 +133,18 @@ describe('gifMakerUrl', () => {
     );
   });
 
-  it("uses the page's id over the image's", () => {
+  it("uses the file's id, not the page's, which may be a duplicate's", () => {
     assert.equal(
       gifMakerUrl({
         site: 'imgflip',
         id: '4qbbg8',
         pageUrl: 'https://imgflip.com/meme/308128486/Yelling-Beaver',
       }),
-      'https://imgflip.com/gif-maker/308128486/Yelling-Beaver',
+      'https://imgflip.com/gif-maker/286062776/Yelling-Beaver',
     );
   });
 
-  it("falls back on the image's base-36 id", () => {
+  it('takes the name of a page URL without an id', () => {
     assert.equal(
       gifMakerUrl({
         site: 'imgflip',

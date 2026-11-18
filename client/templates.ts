@@ -68,13 +68,14 @@ export const kymUrl = (name: string): string =>
 
 /**
  * imgflip's GIF maker for an animated template, to caption the animation itself.
- * It takes the template's id and name from its page URL (`/meme/<id>/<name>`),
- * which may differ from the image's id; a page URL without one falls back on the
- * image's, which is the base-36 template id.
+ * The id is the file's own (its image id in base 36): a template's page URL may be
+ * another upload's, the most popular of its duplicates. imgflip redirects a wrong
+ * name to the right one.
  */
 export const gifMakerUrl = (source: Template['source']): string | null => {
-  const m = source.pageUrl.match(/^https:\/\/imgflip\.com\/meme\/(?:(\d+)\/)?([^/?#]+)$/);
-  return m ? `https://imgflip.com/gif-maker/${m[1] ?? parseInt(source.id, 36)}/${m[2]}` : null;
+  const name = source.pageUrl.match(/^https:\/\/imgflip\.com\/meme\/(?:\d+\/)?([^/?#]+)$/)?.[1];
+  const id = parseInt(source.id, 36);
+  return source.site === 'imgflip' && name && id ? `https://imgflip.com/gif-maker/${id}/${name}` : null;
 };
 
 export const SORTS = {
