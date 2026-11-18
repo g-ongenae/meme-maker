@@ -34,6 +34,7 @@ npm run extract:characters  # cut characters out of templates → data/character
 - Duplicates the comparison misses (swapped panels, collages…) go under `same` in
   `scripts/duplicates.json`, and false matches under `different`, by imgflip id.
   Likewise, missed variants go under `variants` and false ones under `unrelated`.
+  Other names a template is known by go under `aliases`, with the `names` to add.
   `npm run dedupe -- --explain <id>,<id>` shows why two images match or not.
 - Frames are read from videos with the ffmpeg binary from `ffmpeg-static` (set
   `FFMPEG` to use another one).
@@ -70,7 +71,7 @@ with sharp and cached in `data/thumbs/`.
 
 The category menu filters the list: GIFs (animated templates), Complete (every
 other template), Backgrounds (blank pages, plain colours), Formats (empty panel
-layouts), Characters (the transparent cut-outs from `data/characters/`,
+layouts, the demotivational poster), Characters (the transparent cut-outs from `data/characters/`,
 linked to their template as variants) and Diagrams (see below). Backgrounds and
 Formats are listed by template id in `client/categories.ts`.
 

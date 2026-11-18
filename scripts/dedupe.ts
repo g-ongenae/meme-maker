@@ -80,11 +80,16 @@ interface ManualGroup {
   note: string;
   ids: string[];
 }
+/** Other names a template is known by, which no imgflip upload of it has. */
+interface ManualAliases extends ManualGroup {
+  names: string[];
+}
 interface Manual {
   same: ManualGroup[];
   different: ManualGroup[];
   variants?: ManualGroup[];
   unrelated?: ManualGroup[];
+  aliases?: ManualAliases[];
 }
 
 type Downloaded = RawTemplate & { file: string };
@@ -210,7 +215,14 @@ async function main(): Promise<void> {
   const known = new Set(index.map((t) => t.id));
   manual.variants ??= [];
   manual.unrelated ??= [];
-  for (const { ids } of [...manual.same, ...manual.different, ...manual.variants, ...manual.unrelated]) {
+  manual.aliases ??= [];
+  for (const { ids } of [
+    ...manual.same,
+    ...manual.different,
+    ...manual.variants,
+    ...manual.unrelated,
+    ...manual.aliases,
+  ]) {
     for (const id of ids) {
       if (!known.has(id)) console.warn(`${path.basename(MANUAL_FILE)}: unknown imgflip id ${id}`);
     }
@@ -363,6 +375,11 @@ async function main(): Promise<void> {
     found.forEach((i, n) => found.slice(n + 1).forEach((j) => relate(i, j, `manual: ${note}`)));
   }
 
+  const namesOf = new Map<string, string[]>();
+  for (const { ids, names } of manual.aliases) {
+    for (const id of ids) namesOf.set(id, [...(namesOf.get(id) ?? []), ...names]);
+  }
+
   await rm(OUT_DIR, { recursive: true, force: true });
   await mkdir(OUT_DIR, { recursive: true });
 
@@ -396,7 +413,12 @@ async function main(): Promise<void> {
       name: canonical.name,
       rank: canonical.rank,
       source: { ...main.source, pageUrl: canonical.pageUrl },
-      aliases: [...new Set(members.slice(1).map((m) => m.name))].filter((n) => n !== canonical.name),
+      aliases: [
+        ...new Set([
+          ...members.slice(1).map((m) => m.name),
+          ...members.flatMap((m) => namesOf.get(m.id) ?? []),
+        ]),
+      ].filter((n) => n !== canonical.name),
       ...(duplicates.length && { duplicates }),
     });
     if (members.length > 1) dupGroups.push({ keep: canonical, best, members });
