@@ -4,6 +4,7 @@ import {
   type Template,
   SORTS,
   fold,
+  gifMakerUrl,
   imgUrl,
   isSortKey,
   kymUrl,
@@ -117,5 +118,44 @@ describe('kymUrl', () => {
       kymUrl('Is this a pigeon? & co'),
       'https://knowyourmeme.com/search?q=Is+this+a+pigeon%3F+%26+co',
     );
+  });
+});
+
+describe('gifMakerUrl', () => {
+  it("opens imgflip's GIF maker on the template of the page", () => {
+    assert.equal(
+      gifMakerUrl({
+        site: 'imgflip',
+        id: '3ohapu',
+        pageUrl: 'https://imgflip.com/meme/222516354/Disappearing-kid-gif',
+      }),
+      'https://imgflip.com/gif-maker/222516354/Disappearing-kid-gif',
+    );
+  });
+
+  it("uses the page's id over the image's", () => {
+    assert.equal(
+      gifMakerUrl({
+        site: 'imgflip',
+        id: '4qbbg8',
+        pageUrl: 'https://imgflip.com/meme/308128486/Yelling-Beaver',
+      }),
+      'https://imgflip.com/gif-maker/308128486/Yelling-Beaver',
+    );
+  });
+
+  it("falls back on the image's base-36 id", () => {
+    assert.equal(
+      gifMakerUrl({
+        site: 'imgflip',
+        id: '3ohapu',
+        pageUrl: 'https://imgflip.com/meme/Disappearing-kid-gif',
+      }),
+      'https://imgflip.com/gif-maker/222516354/Disappearing-kid-gif',
+    );
+  });
+
+  it('is null for a page elsewhere', () => {
+    assert.equal(gifMakerUrl({ site: 'other', id: 'x', pageUrl: 'https://example.com/meme/1/x' }), null);
   });
 });

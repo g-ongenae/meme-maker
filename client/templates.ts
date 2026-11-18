@@ -66,6 +66,17 @@ export const stillUrl = (t: Media & Pick<Template, 'animated'>): string | null =
 export const kymUrl = (name: string): string =>
   `https://knowyourmeme.com/search?${new URLSearchParams({ q: name })}`;
 
+/**
+ * imgflip's GIF maker for an animated template, to caption the animation itself.
+ * It takes the template's id and name from its page URL (`/meme/<id>/<name>`),
+ * which may differ from the image's id; a page URL without one falls back on the
+ * image's, which is the base-36 template id.
+ */
+export const gifMakerUrl = (source: Template['source']): string | null => {
+  const m = source.pageUrl.match(/^https:\/\/imgflip\.com\/meme\/(?:(\d+)\/)?([^/?#]+)$/);
+  return m ? `https://imgflip.com/gif-maker/${m[1] ?? parseInt(source.id, 36)}/${m[2]}` : null;
+};
+
 export const SORTS = {
   rank: (a: Template, b: Template) => a.rank - b.rank,
   name: (a: Template, b: Template) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }),

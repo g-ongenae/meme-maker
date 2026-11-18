@@ -98,7 +98,8 @@ the top and one at the bottom: type, and download.
 - The meme is kept in the URL hash, so it can be bookmarked or shared (uploaded images stay
   local), and comes back when the template is edited again. The viewer’s alternatives are
   edited too: `f` in the hash is the duplicate’s file. Of an animated template, it’s the
-  still that is edited.
+  still that is edited: “Edit GIF on imgflip” captions the animation itself, in
+  [imgflip’s GIF maker](https://imgflip.com/gif-maker).
 - “Add text…” in the [background editor](#create-a-background) makes a meme of the
   background made there.
 

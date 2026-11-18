@@ -29,6 +29,7 @@ import {
   type Template,
   SORTS,
   fold,
+  gifMakerUrl,
   imgUrl,
   isSortKey,
   kymUrl,
@@ -56,6 +57,7 @@ const openLink = $<HTMLAnchorElement>('open');
 const downloadLink = $<HTMLAnchorElement>('download');
 const sourceLink = $<HTMLAnchorElement>('source');
 const kymLink = $<HTMLAnchorElement>('kym');
+const gifMakerLink = $<HTMLAnchorElement>('gifMaker');
 const related = $('related');
 const relatedToggle = $<HTMLButtonElement>('relatedToggle');
 const relatedCount = $('relatedCount');
@@ -473,6 +475,9 @@ function display(card: Card, t: Duplicate): void {
   // A character is looked up by the meme it was cut out of.
   kymLink.href = kymUrl((from ?? card.template).name);
   kymLink.hidden = false;
+  const gifMaker = t.animated && gifMakerUrl(t.source);
+  gifMakerLink.hidden = !gifMaker;
+  if (gifMaker) gifMakerLink.href = gifMaker;
   for (const li of formatList.children) {
     const button = li.firstElementChild;
     if (button instanceof HTMLElement) button.ariaCurrent = button.dataset.file === t.file ? 'true' : null;
@@ -560,6 +565,7 @@ function displayDiagram(card: DiagramCard, format: DiagramFormat): void {
   sourceLink.href = openLink.href = downloadLink.href = editorUrl(d, format);
   sourceLink.textContent = 'Edit in mermaid.live';
   kymLink.hidden = true;
+  gifMakerLink.hidden = true;
   editLink.hidden = true;
   downloadLink.download = `${d.id}-${format.id}.png`;
   for (const li of formatList.children) {
