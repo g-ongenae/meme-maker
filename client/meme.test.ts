@@ -256,7 +256,15 @@ describe('panels', () => {
     });
     assert.deepEqual(crop({ zoom: 0.25, x: 50, y: 50 }, square, into).target, at(75, 25, 50, 50));
     assert.equal(fitZoom(square, into), 0.5);
-    assert.equal(fitZoom({ width: 300, height: 100 }, { width: 100, height: 100 }), 0.33);
+    assert.equal(fitZoom({ width: 300, height: 100 }, { width: 100, height: 100 }), 0.333);
+  });
+
+  it('fits a very wide picture whole', () => {
+    const wide = { width: 2000, height: 100 };
+    const into = at(0, 0, 100, 100);
+    const zoom = fitZoom(wide, into);
+    assert.equal(zoom, 0.05);
+    assert.deepEqual(crop({ zoom, x: 50, y: 50 }, wide, into).source, at(0, 0, 2000, 100));
   });
 
   it('pans the picture with the drag, and back from an edge at once', () => {
@@ -268,6 +276,12 @@ describe('panels', () => {
     assert.deepEqual(pan(FILL_DEFAULT, square, wide, 300, 0), { x: 50, y: 50 });
     // From a point beyond the edge, from where the picture is.
     assert.deepEqual(pan({ zoom: 1, x: 50, y: 0 }, square, wide, 0, -20), { x: 50, y: 35 });
+  });
+
+  it('pans by a little, close up on a very wide picture', () => {
+    // As an arrow key does: 0.5% of the panel.
+    const moved = pan({ zoom: 5, x: 50, y: 50 }, { width: 2000, height: 100 }, square, 0.5, 0);
+    assert.ok(moved.x < 50, String(moved.x));
   });
 });
 
@@ -657,7 +671,7 @@ describe('encode / decode of a layout', () => {
     assert.deepEqual(fills('g=a&gs=n2&g=b&gs=n-1&g=c&gs=n0.5&g=d&gs=nx', layout), []);
     assert.deepEqual(fills('g=a&gs=n1&g=b&gs=n1_z9', layout), [{ ...FILL_DEFAULT, panel: 1, image: 'a' }]);
     assert.deepEqual(fills('g=a&gs=z0_x-5_y500', layout), [
-      { ...FILL_DEFAULT, image: 'a', zoom: 0.1, x: 0, y: 100 },
+      { ...FILL_DEFAULT, image: 'a', zoom: 0.01, x: 0, y: 100 },
     ]);
     assert.deepEqual(fills('g=a&gs='), []);
   });

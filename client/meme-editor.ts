@@ -126,6 +126,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   const ctx = canvas.getContext('2d')!;
   const layers = $('memeLayers');
   const panelBoxes = $('memePanels');
+  const grip = $('panelGrip');
   const guides = { x: $('guideX'), y: $('guideY') };
   const form = $<HTMLFormElement>('memeForm');
   const textList = $<HTMLUListElement>('memeTexts');
@@ -351,7 +352,14 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       el.classList.toggle('selected', selectedPanel() === i);
       const r = panelRect(panel, f);
       position(el, r.x, r.y, r.width, r.height, f);
+      if (selectedPanel() === i) {
+        grip.style.left = `${((r.x + r.width / 2) / f.width) * 100}%`;
+        grip.style.top = `${((r.y + r.height / 2) / f.height) * 100}%`;
+      }
     });
+    // Over the texts, which may cover the panel, for its picture to be moved anyway.
+    const at = selectedPanel();
+    grip.hidden = at === null || !fillOf(at);
   }
 
   function buildLayer(): HTMLElement {
@@ -423,13 +431,14 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
 
   // --- saving: the undo history, the draft and the URL
 
-  function commit(): void {
+  /** Saves the design: in the history, the URL and, unless told not to, as the template's draft. */
+  function commit(keepDraft = true): void {
     clearTimeout(saveTimer);
     saveTimer = 0;
     if (!base) return;
     const snapshot = JSON.stringify(state);
     steps.push(snapshot);
-    if (base.link) drafts.set(base.src, snapshot);
+    if (base.link && keepDraft) drafts.set(base.src, snapshot);
     if (base.link && dialog.open) {
       const hash = editHash({ ...base.link, params: encode(state, layout) });
       history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
@@ -1088,10 +1097,15 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   const panelOf = (target: EventTarget | null): HTMLElement | null =>
     target instanceof Element ? target.closest<HTMLElement>('.panel') : null;
 
+  /** A panel's box over the preview. */
+  const panelBox = (index: number): HTMLElement | null =>
+    panelBoxes.querySelector<HTMLElement>(`.panel[data-index="${index}"]`);
+
   stage.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !frame || (e.target as Element).closest('button')) return;
-    const el = layerAt(e);
-    const panelEl = !el && panelOf(e.target);
+    const gripped = (e.target as Element).closest('.grip') ? selectedPanel() : null;
+    const el = gripped === null ? layerAt(e) : null;
+    const panelEl = gripped !== null ? panelBox(gripped) : !el && panelOf(e.target);
     if (panelEl) {
       // A panel is selected, and its picture dragged.
       const index = Number(panelEl.dataset.index);
@@ -1207,12 +1221,17 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   stage.addEventListener(
     'wheel',
     (e) => {
-      const panelEl = !layerAt(e) && panelOf(e.target);
+      // Texts don't zoom: the panel under them does.
+      const panelEl = document
+        .elementsFromPoint(e.clientX, e.clientY)
+        .find((el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains('panel'));
       const index = panelEl ? Number(panelEl.dataset.index) : -1;
       const fill = fillOf(index);
-      if (!fill || drag) return;
+      if (!panelEl || !fill || drag) return;
       e.preventDefault();
       select({ kind: 'panel', index });
+      // Its keys are for it now.
+      panelEl.focus({ preventScroll: true });
       const lines = e.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? e.deltaY / 100 : e.deltaY / 3;
       if (Math.abs(wheelZoom - fill.zoom) > LIMITS.zoom.step) wheelZoom = fill.zoom;
       const { min, max } = LIMITS.zoom;
@@ -1265,22 +1284,26 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       ArrowDown: [0, step],
     };
     const move = moves[e.key];
-    if (selected?.kind === 'panel' && panelOf(e.target)) {
-      const fill = fillOf(selected.index);
-      const panel = panels()[selected.index];
+    // The panel in focus, whatever is selected.
+    const focused = panelOf(e.target);
+    if (focused) {
+      const index = Number(focused.dataset.index);
+      select({ kind: 'panel', index });
+      const fill = fillOf(index);
+      const panel = panels()[index];
       if (move && fill && frame && panel) {
         // Its picture moves by a share of the panel.
         e.preventDefault();
         const r = panelRect(panel, frame);
-        panPanel(selected.index, fill, (move[0] / 100) * r.width, (move[1] / 100) * r.height);
+        panPanel(index, fill, (move[0] / 100) * r.width, (move[1] / 100) * r.height);
         changed();
       } else if (fill && (e.key === '+' || e.key === '=' || e.key === '-')) {
         e.preventDefault();
-        zoomPanel(selected.index, fill.zoom + (e.key === '-' ? -0.1 : 0.1));
+        zoomPanel(index, fill.zoom + (e.key === '-' ? -0.1 : 0.1));
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        emptyPanel(selected.index);
-      } else if (e.key === 'Enter') {
+        emptyPanel(index);
+      } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         panelSearch.focus();
       }
@@ -1344,7 +1367,10 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       // A duplicate's file may not be laid out like the template's.
       layout = next.link && !next.link.file ? layoutOf(next.link.id) : undefined;
       const draft = next.link && drafts.get(next.src);
-      state = params?.size ? decode(params, layout) : draft ? (JSON.parse(draft) as Meme) : blank(layout);
+      const left = draft ? (JSON.parse(draft) as Meme) : undefined;
+      // The draft is what a link to it names: it has the uploaded images, which the link hasn't.
+      const linked = !!params?.size && encode(left ?? blank(layout), layout).toString() !== params.toString();
+      state = linked ? decode(params!, layout) : (left ?? blank(layout));
       // Images that aren't in the library (any more) can't be shown.
       state.images = state.images.filter((layer) => sourceOf(layer.image));
       state.fills = state.fills.filter((fill) => sourceOf(fill.image));
@@ -1354,7 +1380,8 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       wrap.hidden = true;
       sync();
       if (!dialog.open) dialog.showModal();
-      commit();
+      // Another design from a link only replaces the draft once it's edited.
+      commit(!linked);
       loadFonts();
       // Ready to type the first text.
       if (state.texts.length) editText(0);

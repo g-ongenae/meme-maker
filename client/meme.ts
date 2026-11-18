@@ -139,8 +139,9 @@ export const LIMITS = {
   size: { min: 1, max: 50, step: 0.5 },
   outlineWidth: { min: 0, max: 25, step: 1 },
   pad: { min: 0, max: 100, step: 1 },
-  zoom: { min: 0.1, max: 5, step: 0.01 },
-  focus: { min: 0, max: 100, step: 0.1 },
+  // Fine enough for a very wide or tall picture to fit, and to be moved by a little.
+  zoom: { min: 0.01, max: 5, step: 0.001 },
+  focus: { min: 0, max: 100, step: 0.001 },
   width: { min: 64, max: 4000, step: 1 },
 } as const;
 
@@ -149,7 +150,8 @@ export type NumberField = keyof typeof LIMITS;
 /** Rounds a value to its field's step, within its limits. */
 export function clampField(field: NumberField, value: number): number {
   const { min, max, step } = LIMITS[field];
-  const rounded = Number((Math.round(value / step) * step).toFixed(2));
+  const decimals = Math.max(0, Math.ceil(-Math.log10(step) - 1e-9));
+  const rounded = Number((Math.round(value / step) * step).toFixed(decimals));
   return Math.min(max, Math.max(min, rounded));
 }
 
@@ -399,7 +401,8 @@ export const fitZoom = (natural: Size, into: Size): number => {
   const across = into.width / natural.width;
   const down = into.height / natural.height;
   // Down, for it to fit to the pixel.
-  return clampField('zoom', Math.floor((Math.min(across, down) / Math.max(across, down)) * 100) / 100);
+  const { step } = LIMITS.zoom;
+  return clampField('zoom', Math.floor(Math.min(across, down) / Math.max(across, down) / step) * step);
 };
 
 /**

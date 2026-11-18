@@ -1018,7 +1018,26 @@ dialog::backdrop {
   border-color: #fff;
   cursor: grab;
 }
-.meme-canvas.dragging :is(.layer, .handle, .panel) {
+/* In the middle of the selected panel, over the texts, to move its picture by. */
+.grip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  translate: -50% -50%;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.3);
+  color: #fff;
+  font-size: 16px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.meme-canvas.dragging :is(.layer, .handle, .panel, .grip) {
   cursor: grabbing;
 }
 /* Shown while a layer is dragged onto the middle of the picture. */

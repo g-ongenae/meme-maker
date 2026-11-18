@@ -112,7 +112,7 @@ the top and one at the bottom: type, and download.
   each comic panel, a title, the labels under the panels…), and each panel can be filled with a
   Complete template or an uploaded picture: click a panel, on the picture or in the list, then
   pick one (an image dropped on a panel fills it too). The picture covers the panel, cropped:
-  drag it to move it, and zoom with the wheel, the slider or <kbd>+</kbd> and <kbd>-</kbd>; “Fit”
+  drag it, or the handle in the middle of the selected panel (over any text), to move it, and zoom with the wheel, the slider or <kbd>+</kbd> and <kbd>-</kbd>; “Fit”
   shows it whole. A new text or image goes in the selected panel, and layers snap to the
   panels’ middles as well as the picture’s. The panels of each format are in `client/formats.ts`,
   measured on the template’s own file (a duplicate’s file isn’t laid out).
