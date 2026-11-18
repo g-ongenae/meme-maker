@@ -337,6 +337,24 @@ h1 {
 #empty code {
   color: var(--text);
 }
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 20px;
+  padding: 16px 20px 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.site-footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.site-footer a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
 [hidden] {
   display: none !important;
 }
