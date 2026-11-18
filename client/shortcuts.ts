@@ -53,6 +53,7 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
         does: `Go to ${category ? CATEGORIES[category] : 'all templates'}`,
       })),
       { keys: [['n']], does: 'Create a background' },
+      { keys: [['i']], does: 'Create a meme from an image' },
     ],
   },
   {

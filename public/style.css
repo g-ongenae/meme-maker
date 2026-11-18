@@ -110,7 +110,7 @@ h1 {
   flex-wrap: wrap;
   gap: 8px;
   flex: 1 1 320px;
-  max-width: 680px;
+  max-width: 760px;
 }
 #search,
 #category,
@@ -128,8 +128,9 @@ h1 {
 .header-button {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 10px 0 12px;
   border: 1px solid var(--accent);
   border-radius: 8px;
   background: var(--accent);
@@ -139,8 +140,72 @@ h1 {
   white-space: nowrap;
   cursor: pointer;
 }
-.header-button:hover {
+.header-button:hover,
+.header-button[aria-expanded='true'] {
   background: var(--accent-text);
+}
+.header-button svg,
+.menu svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.header-button .chevron {
+  width: 14px;
+  height: 14px;
+  transition: rotate 0.15s;
+}
+.header-button[aria-expanded='true'] .chevron {
+  rotate: 180deg;
+}
+
+/* The Create menu, placed under its button by menu.ts. */
+.menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 230px;
+  padding: 4px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.14);
+}
+.menu [role='menuitem'] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.menu [role='menuitem'] svg {
+  color: var(--muted);
+}
+.menu [role='menuitem']:is(:hover, :focus-visible) {
+  background: var(--tile);
+  outline: none;
+}
+.menu kbd {
+  margin-left: auto;
+}
+.menu-hint {
+  margin: 4px 0 0;
+  padding: 7px 10px 5px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
 }
 .header-icon {
   width: 36px;
@@ -158,7 +223,9 @@ h1 {
 }
 /* No keyboard, no shortcuts. */
 @media (hover: none) {
-  .header-icon {
+  .header-icon,
+  .menu kbd,
+  .menu-hint {
     display: none;
   }
 }
@@ -1108,6 +1175,24 @@ kbd {
 @media (max-width: 560px) {
   header {
     padding: 10px 14px;
+  }
+  /* Search on a row of its own, the menus and Create below it. */
+  #search {
+    flex-basis: 100%;
+  }
+  #category,
+  #sort {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  /* Room for the menus: Create is a + (its name still read out). */
+  .header-button .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   #grid {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));

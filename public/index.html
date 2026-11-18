@@ -32,10 +32,35 @@
           <option value="name">Name A–Z</option>
           <option value="size">Largest</option>
         </select>
-        <a id="createBackground" class="header-button" href="#editor" title="Create a background (N)"
-          >Create background</a
+        <button
+          id="createButton"
+          class="header-button"
+          type="button"
+          popovertarget="createMenu"
+          aria-haspopup="menu"
+          aria-expanded="false"
         >
-        <button id="createFromImage" class="header-button" type="button">Create from image</button>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+          <span class="label">Create</span>
+          <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+        </button>
+        <div id="createMenu" class="menu" role="menu" aria-label="Create" popover>
+          <a id="createBackground" role="menuitem" href="#editor">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="2" y="3" width="12" height="10" rx="1.5" />
+            </svg>
+            Blank background <kbd>N</kbd>
+          </a>
+          <button id="createFromImage" role="menuitem" type="button">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="2" y="3" width="12" height="10" rx="1.5" />
+              <path d="m2.5 11.5 3.5-3.5 3 3 1.5-1.5 3 3" />
+              <circle cx="10.5" cy="6" r="1" />
+            </svg>
+            From an image… <kbd>I</kbd>
+          </button>
+          <p class="menu-hint">Or drop or paste an image anywhere.</p>
+        </div>
         <input id="importImage" type="file" accept="image/*" hidden />
         <button
           id="helpButton"

@@ -79,7 +79,7 @@ Formats are listed by template id in `client/categories.ts`.
 <kbd>?</kbd> (or the “?” button) lists them all. On the page and in the viewer, <kbd>S</kbd> or
 <kbd>/</kbd> searches, <kbd>G</kbd> then a letter goes to a category (<kbd>A</kbd>ll,
 <kbd>G</kbd>IFs, complete <kbd>T</kbd>emplates, <kbd>B</kbd>ackgrounds, <kbd>C</kbd>haracters,
-<kbd>D</kbd>iagrams, <kbd>F</kbd>ormats), <kbd>N</kbd> creates a background and <kbd>.</kbd> goes
+<kbd>D</kbd>iagrams, <kbd>F</kbd>ormats), <kbd>N</kbd> creates a background, <kbd>I</kbd> a meme from an image, and <kbd>.</kbd> goes
 back to the top. The arrow keys select a template in the grid, <kbd>O</kbd> (or <kbd>Enter</kbd>)
 opens it and <kbd>E</kbd> edits it. In the viewer, the arrow keys go to the previous or next
 template, <kbd>A</kbd> shows the alternatives, <kbd>E</kbd> edits, <kbd>O</kbd> opens the original
@@ -116,7 +116,7 @@ the top and one at the bottom: type, and download.
   [imgflip’s GIF maker](https://imgflip.com/gif-maker).
 - “Add text…” in the [background editor](#create-a-background) makes a meme of the
   background made there.
-- “Create from image”, next to “Create background”, makes a meme of an image of your own,
+- Create → “From an image…” in the header (or <kbd>I</kbd>) makes a meme of an image of your own,
   like a template; so does dropping one on the list, or pasting one (outside the search field). It stays local: it isn’t
   kept in the URL hash.
 
@@ -147,7 +147,7 @@ pasting it in the editor.
 
 ### Create a background
 
-“Create background” (or the “Create your own” tile heading the Backgrounds, or `#editor`
+Create → “Blank background” in the header (or <kbd>N</kbd>, the “Create your own” tile heading the Backgrounds, or `#editor`
 in the address bar) opens an editor for backgrounds
 in the style of advice-animal templates, drawn on a canvas in the browser:
 

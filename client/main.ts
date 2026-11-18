@@ -21,6 +21,7 @@ import {
 import { $ } from './dom.ts';
 import { createEditor, isEditorHash } from './editor.ts';
 import { createHelp } from './help.ts';
+import { createMenu } from './menu.ts';
 import { editHash, parseEditHash } from './meme.ts';
 import { createMemeEditor } from './meme-editor.ts';
 import { GO_DELAY, goToCategory } from './shortcuts.ts';
@@ -818,6 +819,7 @@ viewer.addEventListener('close', () => {
   if (!isEditorHash(location.hash)) setHash('');
 });
 window.addEventListener('hashchange', openFromHash);
+createMenu('createButton', 'createMenu');
 $('createFromImage').addEventListener('click', () => importImage.click());
 importImage.addEventListener('change', () => {
   createFrom(importImage.files?.[0]);
@@ -996,6 +998,7 @@ document.addEventListener('keydown', (e) => {
     closeViewer();
     search.select();
   } else if (key === 'n') location.hash = '#editor';
+  else if (key === 'i') importImage.click();
   else handled = viewer.open ? viewerKey(key) : gridKey(key);
   if (handled) e.preventDefault();
 });
