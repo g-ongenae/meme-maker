@@ -23,7 +23,6 @@ const CURATED: Record<
   // Blank pages, plain colours, frames.
   background: [
     'black-background',
-    'black-box-meme',
     'blank',
     'blank-black',
     'blank-blue-background',
@@ -39,8 +38,9 @@ const CURATED: Record<
     'spongebob-time-card-background',
     'x-will-return',
   ],
-  // Empty layouts: panels, grids, diagrams.
+  // Empty layouts: panels, grids, diagrams, the demotivational poster.
   format: [
+    'black-box-meme',
     'blank-bingo',
     'blank-comic-panel-1x2',
     'blank-comic-panel-2x1',

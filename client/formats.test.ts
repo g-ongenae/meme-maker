@@ -57,6 +57,17 @@ describe('layouts', () => {
     assert.equal(layoutOf('venn-diagram'), undefined);
   });
 
+  it('has a demotivational poster of one panel in the frame, a title and a line under it', () => {
+    const { panels, texts } = layoutOf('black-box-meme')!;
+    assert.equal(panels.length, 1);
+    assert.equal(texts.length, 2);
+    const [title, line] = texts;
+    const bottom = panels[0].y + panels[0].h;
+    assert.ok(title.y - title.h / 2 >= bottom && line.y > title.y, 'under the picture');
+    assert.ok(title.caps && !line.caps && title.size > line.size);
+    assert.ok(texts.every((t) => t.font === 'times' && t.color === '#ffffff' && t.outlineWidth === 0));
+  });
+
   it('has a comic panel 2x2 of four panels, a text at the top of each', () => {
     const { panels, texts } = layoutOf('blank-comic-panel-2x2')!;
     assert.equal(panels.length, 4);

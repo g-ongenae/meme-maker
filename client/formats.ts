@@ -82,7 +82,21 @@ const FRIENDS_LABELS = [
   'What I actually do',
 ];
 
+/** A demotivational poster's texts: white serif, without an outline, on the black under the picture. */
+const POSTER = { font: 'times', color: '#ffffff', outline: '#000000', outlineWidth: 0, bold: false } as const;
+
 const FORMATS: Record<string, Format> = {
+  // The demotivational poster: a picture in the frame, a title in capitals
+  // under it and a smaller line under the title.
+  'black-box-meme': {
+    width: 251,
+    height: 201,
+    panels: grid([[25, 225]], [[16, 150]]),
+    texts: (_, at) => [
+      textIn(WHOLE, { x: 50, y: 83.6, w: 90, h: 11 }, { ...POSTER, caps: true, size: at(20) }),
+      textIn(WHOLE, { x: 50, y: 93.5, w: 90, h: 7 }, { ...POSTER, caps: false, size: at(9) }),
+    ],
+  },
   'blank-comic-panel-1x2': comic(810, 1220, grid([COMIC_COLUMNS[0]], COMIC_ROWS)),
   'blank-comic-panel-2x1': comic(1620, 610, grid(COMIC_COLUMNS, [COMIC_ROWS[0]])),
   'blank-comic-panel-2x2': comic(1620, 1220, grid(COMIC_COLUMNS, COMIC_ROWS)),

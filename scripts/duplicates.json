@@ -96,5 +96,12 @@
     { "note": "First world problems / cat", "ids": ["1bhf", "a0bh", "26h1"] },
     { "note": "First world problems / stoner", "ids": ["1bhf", "a0bh", "26he"] },
     { "note": "Squid Game / Squid Game 2", "ids": ["98qr33", "9985e5", "9yyek1"] }
+  ],
+  "aliases": [
+    {
+      "note": "Black Box Meme is the demotivational poster's frame",
+      "ids": ["5dezo3"],
+      "names": ["Demotivational Poster", "Demotivationals"]
+    }
   ]
 }
