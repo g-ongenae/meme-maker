@@ -19,7 +19,7 @@
         <input
           id="search"
           type="search"
-          placeholder="Search by name or alias…  ( / )"
+          placeholder="Search by name or alias…  ( S )"
           autocomplete="off"
           spellcheck="false"
           aria-label="Search templates"
@@ -32,9 +32,20 @@
           <option value="name">Name A–Z</option>
           <option value="size">Largest</option>
         </select>
-        <a id="createBackground" class="header-button" href="#editor">Create background</a>
+        <a id="createBackground" class="header-button" href="#editor" title="Create a background (N)"
+          >Create background</a
+        >
         <button id="createFromImage" class="header-button" type="button">Create from image</button>
         <input id="importImage" type="file" accept="image/*" hidden />
+        <button
+          id="helpButton"
+          class="header-icon"
+          type="button"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+        >
+          ?
+        </button>
       </div>
     </header>
 
@@ -90,8 +101,8 @@
           >
             Alternatives <span id="relatedCount"></span>
           </button>
-          <a id="open" target="_blank" rel="noopener">Open original</a>
-          <a id="download">Download</a>
+          <a id="open" target="_blank" rel="noopener" title="Open the original (O)">Open original</a>
+          <a id="download" title="Download (D)">Download</a>
           <a id="source" target="_blank" rel="noopener">View on imgflip</a>
           <a id="kym" target="_blank" rel="noopener">View on Know Your Meme</a>
           <a
@@ -214,7 +225,7 @@
         <div class="actions">
           <button id="editorReset" type="button">Reset</button>
           <button id="editorCaption" type="button" title="Make a meme of this background">Add text…</button>
-          <button id="editorDownload" class="primary" type="button">Download PNG</button>
+          <button id="editorDownload" class="primary" type="button" title="Download (D)">Download PNG</button>
         </div>
       </div>
     </dialog>
@@ -290,7 +301,7 @@
           <input
             id="stickerSearch"
             type="search"
-            placeholder="Search characters…"
+            placeholder="Search characters…  ( S )"
             autocomplete="off"
             spellcheck="false"
             aria-label="Search characters"
@@ -352,10 +363,18 @@
           <button id="memeUndo" type="button" title="Undo (Ctrl+Z)">Undo</button>
           <button id="memeRedo" type="button" title="Redo (Ctrl+Shift+Z)">Redo</button>
           <button id="memeReset" type="button">Reset</button>
-          <button id="memeCopy" type="button" title="Copy the picture to the clipboard">Copy</button>
-          <button id="memeDownload" class="primary" type="button">Download PNG</button>
+          <button id="memeCopy" type="button" title="Copy the picture to the clipboard (Ctrl+C)">Copy</button>
+          <button id="memeDownload" class="primary" type="button" title="Download (D)">Download PNG</button>
         </div>
       </div>
+    </dialog>
+    <dialog id="help" aria-labelledby="helpTitle">
+      <div class="help-head">
+        <h2 id="helpTitle">Keyboard shortcuts</h2>
+        <button id="helpClose" type="button" aria-label="Close">✕</button>
+      </div>
+      <div id="helpGroups" class="help-groups"></div>
+      <p class="hint">Letters do nothing while typing in a field: Tab or a click out of it first.</p>
     </dialog>
   </body>
 </html>

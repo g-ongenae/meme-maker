@@ -74,6 +74,20 @@ layouts), Characters (the transparent cut-outs from `data/characters/`,
 linked to their template as variants) and Diagrams (see below). Backgrounds and
 Formats are listed by template id in `client/categories.ts`.
 
+### Keyboard shortcuts
+
+<kbd>?</kbd> (or the “?” button) lists them all. On the page and in the viewer, <kbd>S</kbd> or
+<kbd>/</kbd> searches, <kbd>G</kbd> then a letter goes to a category (<kbd>A</kbd>ll,
+<kbd>G</kbd>IFs, complete <kbd>T</kbd>emplates, <kbd>B</kbd>ackgrounds, <kbd>C</kbd>haracters,
+<kbd>D</kbd>iagrams, <kbd>F</kbd>ormats), <kbd>N</kbd> creates a background and <kbd>.</kbd> goes
+back to the top. The arrow keys select a template in the grid, <kbd>O</kbd> (or <kbd>Enter</kbd>)
+opens it and <kbd>E</kbd> edits it. In the viewer, the arrow keys go to the previous or next
+template, <kbd>A</kbd> shows the alternatives, <kbd>E</kbd> edits, <kbd>O</kbd> opens the original
+and <kbd>D</kbd> downloads it. In the editors, <kbd>D</kbd> downloads the picture; in the meme
+editor, <kbd>S</kbd> searches the characters and <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the meme when
+no text is selected. Letters are typed, not shortcuts, in a field. They're listed in
+`client/shortcuts.ts`, and handled in `client/main.ts`.
+
 ### Make a meme
 
 “Edit” in the viewer (or <kbd>E</kbd>, or `#edit/<template id>` in the address bar) opens the
