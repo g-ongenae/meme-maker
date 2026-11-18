@@ -76,19 +76,19 @@ const editor = createEditor({
   onClose: () => {
     if (isEditorHash(location.hash)) setHash('');
   },
-  onCaption: (picture) => {
-    const src = URL.createObjectURL(picture);
-    memeEditor.open({ name: 'Custom background', src, dispose: () => URL.revokeObjectURL(src) });
-  },
+  onCaption: (picture) => openLocal('Custom background', picture),
 });
 const importImage = $<HTMLInputElement>('importImage');
+
+function openLocal(name: string, picture: Blob): void {
+  const src = URL.createObjectURL(picture);
+  memeEditor.open({ name, src, dispose: () => URL.revokeObjectURL(src) });
+}
 
 // A picture of the user's own, made into a meme like a template.
 function createFrom(file: File | undefined): boolean {
   if (!file?.type.startsWith('image/')) return false;
-  const src = URL.createObjectURL(file);
-  const name = file.name.replace(/\.[^.]*$/, '') || 'Imported image';
-  memeEditor.open({ name, src, dispose: () => URL.revokeObjectURL(src) });
+  openLocal(file.name.replace(/\.[^.]*$/, '') || 'Imported image', file);
   return true;
 }
 const anyOpen = (): boolean => viewer.open || editor.isOpen || memeEditor.isOpen;
@@ -829,7 +829,7 @@ document.addEventListener('paste', (e) => {
     e.preventDefault();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === '/' && document.activeElement !== search && !viewer.open && !editor.isOpen) {
+  if (e.key === '/' && document.activeElement !== search && !anyOpen()) {
     e.preventDefault();
     search.select();
   }
@@ -859,7 +859,9 @@ async function init(): Promise<void> {
   if (isSortKey(sortParam)) sort.value = sortParam;
   const hash = location.hash;
   render();
-  if (hash) {
+  // An image imported while the templates were loading isn't replaced by the address.
+  if (hash && memeEditor.isOpen) setHash('');
+  else if (hash) {
     history.replaceState(null, '', location.pathname + location.search + hash);
     openFromHash();
   }
