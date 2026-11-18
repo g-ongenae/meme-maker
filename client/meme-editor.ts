@@ -1,20 +1,26 @@
 // Meme editor: a dialog with a live preview of a meme (see meme.ts) made from
 // a picture, a template's or one from the background editor, and its
 // controls. Texts and images are layers over the picture: each has a box over
-// the preview to drag, resize and rotate it by. The design is kept in the URL
-// hash (#edit/<template>?…) so it can be bookmarked or shared; uploaded images
+// the preview to drag, resize and rotate it by. A format made of panels
+// (formats.ts) has a box for each panel too, to fill it with a template or an
+// uploaded picture, and to move it by. The design is kept in the URL hash
+// (#edit/<template>?…) so it can be bookmarked or shared; uploaded images
 // stay local.
 
 import { type Point, normalizeColor } from './background.ts';
 import { categoryOf } from './categories.ts';
 import { $ } from './dom.ts';
+import { layoutOf } from './formats.ts';
 import {
   type Box,
   type Corner,
+  type Fill,
   type Frame,
   type History,
   type ImageLayer,
+  type Layout,
   type Meme,
+  type Panel,
   type Picture,
   type Placed,
   type Size,
@@ -26,6 +32,7 @@ import {
   MAX_TEXT,
   STYLES,
   TEXT_DEFAULT,
+  FILL_DEFAULT,
   IMAGE_DEFAULT,
   VALIGNS,
   blank,
@@ -35,12 +42,15 @@ import {
   editHash,
   encode,
   fitWidth,
+  fitZoom,
   fontOf,
   frameOf,
   imageBox,
   isLocal,
   localKey,
   paint,
+  pan,
+  panelRect,
   place,
   resize,
   rotationTo,
@@ -52,7 +62,7 @@ import {
   unplace,
   withCaption,
 } from './meme.ts';
-import { type Template, fold, stillUrl, thumbUrl } from './templates.ts';
+import { type Template, fold, searchWords, stillUrl, thumbUrl } from './templates.ts';
 
 /** The picture a meme is made from. */
 export interface Base {
@@ -79,11 +89,12 @@ export interface MemeEditor {
   download(): void;
   /** Copies the meme to the clipboard, when it can: false when it can't. */
   copy(): boolean;
-  /** Goes to the characters' search. */
+  /** Goes to the characters' search, or a selected panel's templates. */
   focusSearch(): void;
 }
 
-type Selection = { kind: 'text' | 'image'; index: number };
+type Selection = { kind: 'text' | 'image' | 'panel'; index: number };
+type LayerSelection = Selection & { kind: 'text' | 'image' };
 
 const CORNERS: Corner[] = [
   [-1, -1],
@@ -101,7 +112,11 @@ const SNAP_ANGLE = 4;
 type Drag =
   | { mode: 'move'; start: Point; origin: Point }
   | { mode: 'resize'; corner: Corner; origin: Placed; grab: Point; ratio?: number }
-  | { mode: 'rotate'; centre: Point };
+  | { mode: 'rotate'; centre: Point }
+  | { mode: 'pan'; start: Point; origin: Point };
+
+// The wheel zooms a panel's picture by this much per notch (100 px).
+const WHEEL_ZOOM = 1.15;
 
 export function createMemeEditor({ onClose }: { onClose(base: Base): void }): MemeEditor {
   const dialog = $<HTMLDialogElement>('meme');
@@ -110,6 +125,8 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   const canvas = $<HTMLCanvasElement>('memePicture');
   const ctx = canvas.getContext('2d')!;
   const layers = $('memeLayers');
+  const panelBoxes = $('memePanels');
+  const grip = $('panelGrip');
   const guides = { x: $('guideX'), y: $('guideY') };
   const form = $<HTMLFormElement>('memeForm');
   const textList = $<HTMLUListElement>('memeTexts');
@@ -119,6 +136,13 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   const stickersEmpty = $('stickersEmpty');
   const stickerSearch = $<HTMLInputElement>('stickerSearch');
   const stickerFile = $<HTMLInputElement>('stickerFile');
+  const panelSection = $('panelSection');
+  const panelList = $<HTMLUListElement>('panelList');
+  const panelHint = $('panelHint');
+  const panelLibrary = $<HTMLUListElement>('panelLibrary');
+  const panelSearch = $<HTMLInputElement>('panelSearch');
+  const panelFile = $<HTMLInputElement>('panelFile');
+  const panelStyle = $('panelStyle');
   const dropHint = $('memeDrop');
   const meta = $('memeMeta');
   const undoButton = $<HTMLButtonElement>('memeUndo');
@@ -128,6 +152,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
 
   let base: Base | null = null;
   let picture: HTMLImageElement | null = null; // the base's, once loaded
+  let layout: Layout | undefined; // the base's, if it's a format made of panels
   let state: Meme = blank();
   let selected: Selection | null = null;
   let frame: Frame | null = null;
@@ -148,6 +173,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     outlineWidth: 'outlineWidth',
     rotation: 'rotation',
     imageRotation: 'rotation',
+    zoom: 'zoom',
     top: 'pad',
     right: 'pad',
     bottom: 'pad',
@@ -236,6 +262,14 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   // Until it's loaded, a library image's size is its template's.
   const sizeOf = (image: string): Size | undefined => pictureOf(image) ?? byId.get(image);
 
+  const thumbOf = (image: string): string | undefined => {
+    if (isLocal(image)) return locals.get(image);
+    const t = byId.get(image);
+    return t && thumbUrl(t);
+  };
+
+  const nameOf = (image: string): string => byId.get(image)?.name ?? 'Uploaded picture';
+
   // The canvas draws in a font only once it's loaded.
   function loadFonts(): Promise<unknown> {
     if (fonts) return fonts;
@@ -248,7 +282,24 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   // --- drawing
 
   const layerOf = (s: Selection): TextLayer | ImageLayer | undefined =>
-    s.kind === 'text' ? state.texts[s.index] : state.images[s.index];
+    s.kind === 'text' ? state.texts[s.index] : s.kind === 'image' ? state.images[s.index] : undefined;
+
+  const panels = (): readonly Panel[] => layout?.panels ?? [];
+
+  const fillOf = (panel: number): Fill | undefined => state.fills.find((fill) => fill.panel === panel);
+
+  const selectedPanel = (): number | null => (selected?.kind === 'panel' ? selected.index : null);
+
+  /** Whether what a selection names is (still) there. */
+  const exists = (s: Selection): boolean => (s.kind === 'panel' ? s.index < panels().length : !!layerOf(s));
+
+  /** The panel a picture picked or uploaded for the panels goes to: the selected one, or the first empty one. */
+  const targetPanel = (): number => {
+    const at = selectedPanel();
+    if (at !== null) return at;
+    const empty = panels().findIndex((_, i) => !fillOf(i));
+    return empty < 0 ? 0 : empty;
+  };
 
   const selectedText = (): TextLayer | undefined =>
     selected?.kind === 'text' ? state.texts[selected.index] : undefined;
@@ -258,6 +309,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
 
   /** A layer's box, unless it's an image whose size isn't known yet. */
   function boxOf(s: Selection): Box | null {
+    if (s.kind === 'panel') return null;
     if (s.kind === 'text') return state.texts[s.index] ?? null;
     const layer = state.images[s.index];
     const size = layer && sizeOf(layer.image);
@@ -265,10 +317,50 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   }
 
   // Images first: the texts are drawn over them.
-  const order = (): Selection[] => [
-    ...state.images.map((_, index): Selection => ({ kind: 'image', index })),
-    ...state.texts.map((_, index): Selection => ({ kind: 'text', index })),
+  const order = (): LayerSelection[] => [
+    ...state.images.map((_, index): LayerSelection => ({ kind: 'image', index })),
+    ...state.texts.map((_, index): LayerSelection => ({ kind: 'text', index })),
   ];
+
+  /** Where a box goes over the preview: its place in % of the result. */
+  function position(el: HTMLElement, x: number, y: number, width: number, height: number, f: Frame): void {
+    el.style.left = `${(x / f.width) * 100}%`;
+    el.style.top = `${(y / f.height) * 100}%`;
+    el.style.width = `${(width / f.width) * 100}%`;
+    el.style.height = `${(height / f.height) * 100}%`;
+  }
+
+  // The boxes of the panels, under the layers': one per panel, where it is.
+  function layoutPanels(f: Frame): void {
+    const all = panels();
+    while (panelBoxes.children.length > all.length) panelBoxes.lastElementChild!.remove();
+    while (panelBoxes.children.length < all.length) {
+      const el = document.createElement('div');
+      el.className = 'panel';
+      el.tabIndex = 0;
+      el.role = 'button';
+      el.setAttribute('aria-describedby', 'memePanelHelp');
+      panelBoxes.append(el);
+    }
+    all.forEach((panel, i) => {
+      const el = panelBoxes.children[i] as HTMLElement;
+      const fill = fillOf(i);
+      el.dataset.index = String(i);
+      el.dataset.hint = `Panel ${i + 1}`;
+      el.ariaLabel = `Panel ${i + 1}: ${fill ? nameOf(fill.image) : 'empty'}`;
+      el.classList.toggle('filled', !!fill);
+      el.classList.toggle('selected', selectedPanel() === i);
+      const r = panelRect(panel, f);
+      position(el, r.x, r.y, r.width, r.height, f);
+      if (selectedPanel() === i) {
+        grip.style.left = `${((r.x + r.width / 2) / f.width) * 100}%`;
+        grip.style.top = `${((r.y + r.height / 2) / f.height) * 100}%`;
+      }
+    });
+    // Over the texts, which may cover the panel, for its picture to be moved anyway.
+    const at = selectedPanel();
+    grip.hidden = at === null || !fillOf(at);
+  }
 
   function buildLayer(): HTMLElement {
     const el = document.createElement('div');
@@ -309,14 +401,9 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       el.ariaLabel = text ? `${label}: ${text}` : label;
       if (!box) return;
       const p = place(box, f);
-      el.style.left = `${((p.cx - p.width / 2) / f.width) * 100}%`;
-      el.style.top = `${((p.cy - p.height / 2) / f.height) * 100}%`;
-      el.style.width = `${(p.width / f.width) * 100}%`;
-      el.style.height = `${(p.height / f.height) * 100}%`;
+      position(el, p.cx - p.width / 2, p.cy - p.height / 2, p.width, p.height, f);
       el.style.rotate = `${box.rotation}deg`;
     });
-    guides.x.style.left = `${((f.image.x + f.image.width / 2) / f.width) * 100}%`;
-    guides.y.style.top = `${((f.image.y + f.image.height / 2) / f.height) * 100}%`;
   }
 
   let raf = 0;
@@ -334,7 +421,8 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     if (canvas.height !== f.height) canvas.height = f.height;
     wrap.style.setProperty('--ratio', `${f.width} / ${f.height}`);
     wrap.style.setProperty('--aspect', String(f.width / f.height));
-    paint(ctx, state, f, picture, pictureOf);
+    paint(ctx, state, f, picture, pictureOf, panels());
+    layoutPanels(f);
     layoutLayers(f);
     meta.textContent = `${f.width} × ${f.height} px · PNG`;
     // The width it has when none is asked for.
@@ -343,15 +431,16 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
 
   // --- saving: the undo history, the draft and the URL
 
-  function commit(): void {
+  /** Saves the design: in the history, the URL and, unless told not to, as the template's draft. */
+  function commit(keepDraft = true): void {
     clearTimeout(saveTimer);
     saveTimer = 0;
     if (!base) return;
     const snapshot = JSON.stringify(state);
     steps.push(snapshot);
-    if (base.link) drafts.set(base.src, snapshot);
+    if (base.link && keepDraft) drafts.set(base.src, snapshot);
     if (base.link && dialog.open) {
-      const hash = editHash({ ...base.link, params: encode(state) });
+      const hash = editHash({ ...base.link, params: encode(state, layout) });
       history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
     }
     syncHistory();
@@ -382,7 +471,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     const active = document.activeElement;
     const typing = active instanceof HTMLTextAreaElement ? Number(active.dataset.index) : -1;
     state = JSON.parse(snapshot) as Meme;
-    if (selected && !layerOf(selected)) selected = null;
+    if (selected && !exists(selected)) selected = null;
     sync();
     textareaOf(typing)?.focus();
     done();
@@ -440,7 +529,33 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     );
   }
 
-  // The controls of the selected layer.
+  // A button per panel, showing its picture.
+  function renderPanels(): void {
+    panelList.replaceChildren(
+      ...panels().map((_, i) => {
+        const li = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.panel = String(i);
+        const fill = fillOf(i);
+        const thumb = fill && thumbOf(fill.image);
+        button.title = fill ? `Panel ${i + 1}: ${nameOf(fill.image)}` : `Panel ${i + 1}`;
+        if (thumb) {
+          const img = document.createElement('img');
+          img.alt = '';
+          img.src = thumb;
+          button.append(img);
+        }
+        const n = document.createElement('span');
+        n.textContent = String(i + 1);
+        button.append(n);
+        li.append(button);
+        return li;
+      }),
+    );
+  }
+
+  // The controls of the selected layer or panel.
   function syncSelection(): void {
     [...textList.children].forEach((li, i) =>
       li.classList.toggle('selected', selected?.kind === 'text' && selected.index === i),
@@ -469,10 +584,23 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       setRange('imageRotation', image.rotation);
       control('flip').checked = image.flip;
     }
+    const at = selectedPanel();
+    for (const button of panelList.querySelectorAll<HTMLElement>('button[data-panel]')) {
+      button.ariaPressed = String(Number(button.dataset.panel) === at);
+    }
+    const target = targetPanel();
+    const fill = at === null ? undefined : fillOf(at);
+    panelHint.textContent = fill
+      ? `Panel ${at! + 1}: ${nameOf(fill.image)}. Pick another to replace it.`
+      : `Pick a template or upload a picture for panel ${target + 1}.`;
+    panelStyle.hidden = !fill;
+    if (fill) setRange('zoom', fill.zoom);
   }
 
   function sync(): void {
     renderTexts();
+    renderPanels();
+    panelSection.hidden = !panels().length;
     syncSelection();
     for (const side of ['top', 'right', 'bottom', 'left'] as const) setRange(side, state.pad[side]);
     control('padColor').value = state.padColor;
@@ -485,6 +613,49 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     selected = next;
     syncSelection();
     draw();
+  }
+
+  // --- panels
+
+  /** Puts a picture in a panel, in place of the one there. */
+  function fillPanel(panel: number, image: string): void {
+    if (panel >= panels().length) return;
+    state.fills = [...state.fills.filter((fill) => fill.panel !== panel), { ...FILL_DEFAULT, panel, image }];
+    selected = { kind: 'panel', index: panel };
+    renderPanels();
+    syncSelection();
+    done();
+  }
+
+  function emptyPanel(panel: number): void {
+    if (!fillOf(panel)) return;
+    state.fills = state.fills.filter((fill) => fill.panel !== panel);
+    renderPanels();
+    syncSelection();
+    done();
+  }
+
+  /** A panel's size in the picture's own px. */
+  function panelSize(panel: Panel): Size | null {
+    return picture
+      ? { width: (panel.w / 100) * picture.naturalWidth, height: (panel.h / 100) * picture.naturalHeight }
+      : null;
+  }
+
+  /** Moves a panel's picture by (dx, dy) px of the result, from where it was. */
+  function panPanel(panel: number, from: Point, dx: number, dy: number): void {
+    const fill = fillOf(panel);
+    const size = fill && sizeOf(fill.image);
+    if (!fill || !size || !frame || !panels()[panel]) return;
+    Object.assign(fill, pan({ ...fill, ...from }, size, panelRect(panels()[panel], frame), dx, dy));
+  }
+
+  function zoomPanel(panel: number, zoom: number): void {
+    const fill = fillOf(panel);
+    if (!fill) return;
+    fill.zoom = clampField('zoom', zoom);
+    setRange('zoom', fill.zoom);
+    changed();
   }
 
   /** Selects a text and puts the cursor in it, to type. */
@@ -511,10 +682,24 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   // There is room for an image once there is a picture to put it on.
   const takesImage = (): boolean => !!picture && state.images.length < MAX_LAYERS;
 
+  // The selected panel, where what's added goes.
+  const panelAtHand = (): Panel | undefined => {
+    const at = selectedPanel();
+    return at === null ? undefined : panels()[at];
+  };
+
   function addImage(image: string, size: Size): void {
     if (!picture || !takesImage()) return;
-    const w = fitWidth(size, { width: picture.naturalWidth, height: picture.naturalHeight });
-    state.images.push({ ...IMAGE_DEFAULT, image, w });
+    const panel = panelAtHand();
+    const inPanel = panel && panelSize(panel);
+    const w =
+      panel && inPanel
+        ? clampField('w', (fitWidth(size, inPanel, 60) * panel.w) / 100)
+        : fitWidth(size, { width: picture.naturalWidth, height: picture.naturalHeight });
+    const at = panel
+      ? { x: clampField('x', panel.x + panel.w / 2), y: clampField('y', panel.y + panel.h / 2) }
+      : {};
+    state.images.push({ ...IMAGE_DEFAULT, image, w, ...at });
     select({ kind: 'image', index: state.images.length - 1 });
     done();
   }
@@ -527,28 +712,34 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   });
 
   function remove(s: Selection): void {
+    if (s.kind === 'panel') {
+      emptyPanel(s.index);
+      return;
+    }
     (s.kind === 'text' ? state.texts : state.images).splice(s.index, 1);
     selected = null;
     sync();
     done();
   }
 
-  function upload(files: Iterable<File>): void {
+  /** Adds images on top, or puts the first one in a panel. */
+  function upload(files: Iterable<File>, panel?: number): void {
     const on = base;
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) continue;
+    const images = [...files].filter((file) => file.type.startsWith('image/'));
+    for (const file of panel === undefined ? images : images.slice(0, 1)) {
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
         // It's for the picture it was given to, which may be gone by the time it's read.
-        if (base !== on || !takesImage()) {
+        if (base !== on || (panel === undefined ? !takesImage() : panel >= panels().length)) {
           URL.revokeObjectURL(url);
           return;
         }
         const key = localKey(++uploads);
         locals.set(key, url);
         loaded.set(url, img);
-        addImage(key, { width: img.naturalWidth, height: img.naturalHeight });
+        if (panel === undefined) addImage(key, { width: img.naturalWidth, height: img.naturalHeight });
+        else fillPanel(panel, key);
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -561,7 +752,10 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   // Uploaded images are kept for as long as a design that can come back has them.
   function releaseUploads(): void {
     const kept = new Set(
-      [...drafts.values()].flatMap((draft) => (JSON.parse(draft) as Meme).images.map((layer) => layer.image)),
+      [...drafts.values()].flatMap((draft) => {
+        const { images, fills } = JSON.parse(draft) as Meme;
+        return [...images, ...fills].map((layer) => layer.image);
+      }),
     );
     for (const [key, url] of locals) {
       if (kept.has(key)) continue;
@@ -629,6 +823,11 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
         if (!image) return;
         image.flip = checked;
         break;
+      case 'zoom': {
+        const at = selectedPanel();
+        if (at !== null) zoomPanel(at, Number(value));
+        return;
+      }
       case 'style':
         if (!t || !Object.hasOwn(STYLES, value)) return;
         Object.assign(t, STYLES[value as keyof typeof STYLES].style);
@@ -690,9 +889,16 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   });
 
   $('addText').addEventListener('click', () => {
-    // In the style of the text at hand, in the middle of the picture.
+    // In the style of the text at hand, in the middle of the picture or of the selected panel.
     const like = selectedText() ?? state.texts.at(-1) ?? TEXT_DEFAULT;
-    addText({ ...TEXT_DEFAULT, ...styleOf(like), size: like.size });
+    const panel = panelAtHand();
+    const at = panel && {
+      x: clampField('x', panel.x + panel.w / 2),
+      y: clampField('y', panel.y + panel.h / 2),
+      w: clampField('w', panel.w * 0.94),
+      h: clampField('h', Math.min(panel.h * 0.4, TEXT_DEFAULT.h)),
+    };
+    addText({ ...TEXT_DEFAULT, ...styleOf(like), size: like.size, ...at });
   });
   $('addCaption').addEventListener('click', () => {
     if (state.texts.length >= MAX_LAYERS) return;
@@ -726,13 +932,50 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     const t = button && byId.get(button.dataset.id!);
     if (t) addImage(t.id, t);
   });
-  stickerSearch.addEventListener('input', () => {
-    const words = fold(stickerSearch.value).split(/\s+/).filter(Boolean);
-    for (const li of stickers.children) {
+  function filterLibrary(list: HTMLElement, query: string): void {
+    const words = searchWords(query);
+    for (const li of list.children) {
       if (li instanceof HTMLElement) li.hidden = !words.every((w) => li.dataset.name!.includes(w));
     }
-  });
+  }
+  stickerSearch.addEventListener('input', () => filterLibrary(stickers, stickerSearch.value));
   $('stickerUpload').addEventListener('click', () => stickerFile.click());
+
+  panelList.addEventListener('click', (e) => {
+    const button = (e.target as Element).closest<HTMLElement>('button[data-panel]');
+    if (button) select({ kind: 'panel', index: Number(button.dataset.panel) });
+  });
+  panelLibrary.addEventListener('click', (e) => {
+    const button = (e.target as Element).closest<HTMLElement>('button[data-id]');
+    if (button && byId.has(button.dataset.id!)) fillPanel(targetPanel(), button.dataset.id!);
+  });
+  panelSearch.addEventListener('input', () => filterLibrary(panelLibrary, panelSearch.value));
+  $('panelUpload').addEventListener('click', () => panelFile.click());
+  panelFile.addEventListener('change', () => {
+    upload(panelFile.files ?? [], targetPanel());
+    panelFile.value = '';
+  });
+  // The whole picture in the panel, or the panel covered.
+  $('panelFit').addEventListener('click', () => {
+    const at = selectedPanel();
+    const fill = at === null ? undefined : fillOf(at);
+    const size = fill && sizeOf(fill.image);
+    const panel = at === null ? undefined : panels()[at];
+    const into = panel && panelSize(panel);
+    if (at === null || !size || !into) return;
+    zoomPanel(at, fitZoom(size, into));
+    commit();
+  });
+  $('panelCover').addEventListener('click', () => {
+    const at = selectedPanel();
+    if (at === null) return;
+    zoomPanel(at, 1);
+    commit();
+  });
+  $('panelEmpty').addEventListener('click', () => {
+    const at = selectedPanel();
+    if (at !== null) emptyPanel(at);
+  });
   stickerFile.addEventListener('change', () => {
     upload(stickerFile.files ?? []);
     stickerFile.value = '';
@@ -748,7 +991,11 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   stage.addEventListener('drop', (e) => {
     e.preventDefault();
     dropHint.hidden = true;
-    upload(e.dataTransfer?.files ?? []);
+    // Onto a panel, it fills it.
+    const panel = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .find((el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains('panel'));
+    upload(e.dataTransfer?.files ?? [], panel ? Number(panel.dataset.index) : undefined);
   });
   // Before the background editor, which may be open underneath, gets it.
   document.addEventListener(
@@ -758,7 +1005,8 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
       if (!files.length) return;
       e.preventDefault();
-      upload(files);
+      // Into the selected panel, if one is.
+      upload(files, selectedPanel() ?? undefined);
     },
     true,
   );
@@ -769,7 +1017,8 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     const of = base;
     if (!of || !picture) throw new Error('no picture');
     // What the preview is still waiting for would be missing from the result.
-    await Promise.all([loadFonts(), ...state.images.flatMap(({ image }) => sourceOf(image) ?? []).map(load)]);
+    const images = [...state.images, ...state.fills].flatMap(({ image }) => sourceOf(image) ?? []);
+    await Promise.all([loadFonts(), ...images.map(load)]);
     if (base !== of) throw new Error('no picture');
     render();
     return new Promise((resolve, reject) => {
@@ -807,7 +1056,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   undoButton.addEventListener('click', undo);
   redoButton.addEventListener('click', redo);
   $('memeReset').addEventListener('click', () => {
-    state = blank();
+    state = blank(layout);
     selected = null;
     sync();
     done();
@@ -818,7 +1067,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     if (closed) onClose(closed);
   });
 
-  // --- dragging on the preview: a layer, one of its corners or its rotation handle
+  // --- dragging on the preview: a layer, one of its corners or its rotation handle, or a panel's picture
 
   function pointOf(e: PointerEvent, f: Frame): Point {
     const r = canvas.getBoundingClientRect();
@@ -830,7 +1079,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
 
   // Layers overlap: the smallest one under the pointer is the one meant, or a
   // text over the whole picture would keep everything under it out of reach.
-  function layerAt(e: PointerEvent): HTMLElement | null {
+  function layerAt(e: MouseEvent): HTMLElement | null {
     const handle = (e.target as Element).closest<HTMLElement>('.handle');
     if (handle) return handle.parentElement;
     const area = (el: HTMLElement) => el.offsetWidth * el.offsetHeight;
@@ -840,18 +1089,41 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       .reduce<HTMLElement | null>((best, el) => (best && area(best) <= area(el) ? best : el), null);
   }
 
-  const refOf = (el: HTMLElement): Selection => ({
+  const refOf = (el: HTMLElement): LayerSelection => ({
     kind: el.dataset.kind === 'image' ? 'image' : 'text',
     index: Number(el.dataset.index),
   });
 
+  const panelOf = (target: EventTarget | null): HTMLElement | null =>
+    target instanceof Element ? target.closest<HTMLElement>('.panel') : null;
+
+  /** A panel's box over the preview. */
+  const panelBox = (index: number): HTMLElement | null =>
+    panelBoxes.querySelector<HTMLElement>(`.panel[data-index="${index}"]`);
+
   stage.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !frame || (e.target as Element).closest('button')) return;
-    const el = layerAt(e);
+    const gripped = (e.target as Element).closest('.grip') ? selectedPanel() : null;
+    const el = gripped === null ? layerAt(e) : null;
+    const panelEl = gripped !== null ? panelBox(gripped) : !el && panelOf(e.target);
+    if (panelEl) {
+      // A panel is selected, and its picture dragged.
+      const index = Number(panelEl.dataset.index);
+      e.preventDefault();
+      select({ kind: 'panel', index });
+      panelEl.focus({ preventScroll: true });
+      const fill = fillOf(index);
+      if (!fill) return;
+      panelEl.setPointerCapture(e.pointerId);
+      wrap.classList.add('dragging');
+      drag = { mode: 'pan', start: pointOf(e, frame), origin: { x: fill.x, y: fill.y } };
+      return;
+    }
     if (!el) {
       select(null);
-      if (document.activeElement instanceof HTMLElement && layers.contains(document.activeElement))
-        document.activeElement.blur();
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && (layers.contains(active) || panelBoxes.contains(active)))
+        active.blur();
       return;
     }
     const ref = refOf(el);
@@ -886,24 +1158,41 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     }
   });
 
+  /** The middle of the picture or of a panel nearest to a value, along an axis, if it's close enough. */
+  function middleNear(axis: 'x' | 'y', value: number): number | null {
+    const middles = [50, ...panels().map((p) => (axis === 'x' ? p.x + p.w / 2 : p.y + p.h / 2))];
+    let best: number | null = null;
+    for (const m of middles) {
+      if (Math.abs(value - m) <= SNAP && (best === null || Math.abs(value - m) < Math.abs(value - best)))
+        best = m;
+    }
+    return best;
+  }
+
   stage.addEventListener('pointermove', (e) => {
     if (!drag || !frame || !selected) return;
-    const layer = layerOf(selected);
-    if (!layer) return;
     const p = pointOf(e, frame);
+    if (drag.mode === 'pan') {
+      if (selected.kind !== 'panel') return;
+      panPanel(selected.index, drag.origin, p.x - drag.start.x, p.y - drag.start.y);
+      draw();
+      return;
+    }
+    const layer = layerOf(selected);
+    if (!layer || selected.kind === 'panel') return;
     const { image } = frame;
-    let onX = false;
-    let onY = false;
+    let onX: number | null = null;
+    let onY: number | null = null;
     if (drag.mode === 'move') {
-      let x = drag.origin.x + ((p.x - drag.start.x) / image.width) * 100;
-      let y = drag.origin.y + ((p.y - drag.start.y) / image.height) * 100;
-      // Alt lets it go anywhere.
-      onX = !e.altKey && Math.abs(x - 50) <= SNAP;
-      onY = !e.altKey && Math.abs(y - 50) <= SNAP;
-      if (onX) x = 50;
-      if (onY) y = 50;
-      layer.x = clampField('x', x);
-      layer.y = clampField('y', y);
+      const x = drag.origin.x + ((p.x - drag.start.x) / image.width) * 100;
+      const y = drag.origin.y + ((p.y - drag.start.y) / image.height) * 100;
+      // It snaps to the middle of the picture and of the panels. Alt lets it go anywhere.
+      onX = e.altKey ? null : middleNear('x', x);
+      onY = e.altKey ? null : middleNear('y', y);
+      layer.x = clampField('x', onX ?? x);
+      layer.y = clampField('y', onY ?? y);
+      guides.x.style.left = `${((image.x + ((onX ?? 0) / 100) * image.width) / frame.width) * 100}%`;
+      guides.y.style.top = `${((image.y + ((onY ?? 0) / 100) * image.height) / frame.height) * 100}%`;
     } else if (drag.mode === 'resize') {
       const to = { x: p.x + drag.grab.x, y: p.y + drag.grab.y };
       const range = sizeRange(frame, selected.kind);
@@ -920,11 +1209,37 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
         e.shiftKey ? snap(angle, 15, 15) : e.altKey ? angle : snap(angle, SNAP_ANGLES, SNAP_ANGLE),
       );
     }
-    guides.x.hidden = !onX;
-    guides.y.hidden = !onY;
+    guides.x.hidden = onX === null;
+    guides.y.hidden = onY === null;
     syncSelection();
     draw();
   });
+
+  // The wheel zooms a panel's picture. Its zoom is kept unrounded here, for
+  // the small steps of a touchpad to add up.
+  let wheelZoom = 1;
+  stage.addEventListener(
+    'wheel',
+    (e) => {
+      // Texts don't zoom: the panel under them does.
+      const panelEl = document
+        .elementsFromPoint(e.clientX, e.clientY)
+        .find((el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains('panel'));
+      const index = panelEl ? Number(panelEl.dataset.index) : -1;
+      const fill = fillOf(index);
+      if (!panelEl || !fill || drag) return;
+      e.preventDefault();
+      select({ kind: 'panel', index });
+      // Its keys are for it now.
+      panelEl.focus({ preventScroll: true });
+      const lines = e.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? e.deltaY / 100 : e.deltaY / 3;
+      if (Math.abs(wheelZoom - fill.zoom) > LIMITS.zoom.step) wheelZoom = fill.zoom;
+      const { min, max } = LIMITS.zoom;
+      wheelZoom = Math.min(max, Math.max(min, wheelZoom * WHEEL_ZOOM ** -lines));
+      zoomPanel(index, wheelZoom);
+    },
+    { passive: false },
+  );
 
   const endDrag = () => {
     if (!drag) return;
@@ -943,6 +1258,10 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     const el = (e.target as Element).closest<HTMLElement>('.layer');
     if (el && !drag) select(refOf(el));
   });
+  panelBoxes.addEventListener('focusin', (e) => {
+    const el = panelOf(e.target);
+    if (el && !drag) select({ kind: 'panel', index: Number(el.dataset.index) });
+  });
 
   dialog.addEventListener('keydown', (e) => {
     const mod = e.ctrlKey || e.metaKey;
@@ -956,9 +1275,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       else undo();
       return;
     }
-    // The rest is for the layer in focus.
-    const layer = selected && layerOf(selected);
-    if (!selected || !layer || !(e.target as Element).closest('.layer')) return;
+    // The rest is for the layer or panel in focus.
     const step = e.shiftKey ? 5 : 0.5;
     const moves: Record<string, [number, number]> = {
       ArrowLeft: [-step, 0],
@@ -967,6 +1284,33 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       ArrowDown: [0, step],
     };
     const move = moves[e.key];
+    // The panel in focus, whatever is selected.
+    const focused = panelOf(e.target);
+    if (focused) {
+      const index = Number(focused.dataset.index);
+      select({ kind: 'panel', index });
+      const fill = fillOf(index);
+      const panel = panels()[index];
+      if (move && fill && frame && panel) {
+        // Its picture moves by a share of the panel.
+        e.preventDefault();
+        const r = panelRect(panel, frame);
+        panPanel(index, fill, (move[0] / 100) * r.width, (move[1] / 100) * r.height);
+        changed();
+      } else if (fill && (e.key === '+' || e.key === '=' || e.key === '-')) {
+        e.preventDefault();
+        zoomPanel(index, fill.zoom + (e.key === '-' ? -0.1 : 0.1));
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        emptyPanel(index);
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        panelSearch.focus();
+      }
+      return;
+    }
+    const layer = selected && layerOf(selected);
+    if (!selected || !layer || !(e.target as Element).closest('.layer')) return;
     if (move && e.altKey) {
       // Alt resizes it, about its middle: an image as a whole, a text's box each way.
       e.preventDefault();
@@ -997,23 +1341,47 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     }
   });
 
+  // A template to pick, found by its names.
+  function libraryItem(t: Template): HTMLLIElement {
+    const li = document.createElement('li');
+    li.dataset.name = fold([t.name, ...t.aliases].join(' '));
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.id = t.id;
+    button.title = t.name;
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.alt = t.name;
+    img.src = thumbUrl(t);
+    button.append(img);
+    li.append(button);
+    return li;
+  }
+
   return {
     open(next, params) {
       // Straight from another picture, when the hash goes from one to the next.
       leave();
       base = next;
       selected = null;
+      // A duplicate's file may not be laid out like the template's.
+      layout = next.link && !next.link.file ? layoutOf(next.link.id) : undefined;
       const draft = next.link && drafts.get(next.src);
-      state = params?.size ? decode(params) : draft ? (JSON.parse(draft) as Meme) : blank();
+      const left = draft ? (JSON.parse(draft) as Meme) : undefined;
+      // The draft is what a link to it names: it has the uploaded images, which the link hasn't.
+      const linked = !!params?.size && encode(left ?? blank(layout), layout).toString() !== params.toString();
+      state = linked ? decode(params!, layout) : (left ?? blank(layout));
       // Images that aren't in the library (any more) can't be shown.
       state.images = state.images.filter((layer) => sourceOf(layer.image));
+      state.fills = state.fills.filter((fill) => sourceOf(fill.image));
       steps = createHistory(JSON.stringify(state));
       $('memeName').textContent = next.name;
       meta.textContent = 'Loading…';
       wrap.hidden = true;
       sync();
       if (!dialog.open) dialog.showModal();
-      commit();
+      // Another design from a link only replaces the draft once it's edited.
+      commit(!linked);
       loadFonts();
       // Ready to type the first text.
       if (state.texts.length) editText(0);
@@ -1046,32 +1414,24 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       return true;
     },
     focusSearch() {
-      if (stickerSearch.hidden) return;
-      stickerSearch.scrollIntoView({ block: 'nearest' });
-      stickerSearch.select();
+      // A selected panel's own search: the templates to fill it with.
+      const search = selectedPanel() !== null && !panelSection.hidden ? panelSearch : stickerSearch;
+      if (search.hidden) return;
+      search.scrollIntoView({ block: 'nearest' });
+      search.select();
     },
     setLibrary(templates) {
       byId = new Map(templates.map((t) => [t.id, t]));
       const characters = templates.filter((t) => categoryOf(t) === 'characters');
-      stickers.replaceChildren(
-        ...characters.map((t) => {
-          const li = document.createElement('li');
-          li.dataset.name = fold(t.name);
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.dataset.id = t.id;
-          button.title = t.name;
-          const img = document.createElement('img');
-          img.loading = 'lazy';
-          img.alt = t.name;
-          img.src = thumbUrl(t);
-          button.append(img);
-          li.append(button);
-          return li;
-        }),
-      );
+      stickers.replaceChildren(...characters.map(libraryItem));
       stickersEmpty.hidden = characters.length > 0;
       stickerSearch.hidden = characters.length === 0;
+      // The panels take complete memes, most popular first.
+      const complete = templates.filter((t) => categoryOf(t) === 'complete').sort((a, b) => a.rank - b.rank);
+      panelLibrary.replaceChildren(...complete.map(libraryItem));
+      filterLibrary(panelLibrary, panelSearch.value);
+      renderPanels();
+      syncSelection();
       draw();
     },
   };

@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import {
   type Ctx,
   type Frame,
+  type Layout,
   type Meme,
   type Placed,
   type TextLayer,
+  FILL_DEFAULT,
   IMAGE_DEFAULT,
   LINE_HEIGHT,
   STYLES,
@@ -13,17 +15,21 @@ import {
   blank,
   clampField,
   createHistory,
+  crop,
   decode,
   editHash,
   encode,
   fitText,
   fitWidth,
+  fitZoom,
   fontOf,
   frameOf,
   imageBox,
   localKey,
   normalizeAngle,
   paint,
+  pan,
+  panelRect,
   paintText,
   parseEditHash,
   place,
@@ -214,6 +220,71 @@ describe('resize', () => {
   });
 });
 
+describe('panels', () => {
+  it('places a panel in the picture, inside the space around', () => {
+    const f: Frame = { width: 1000, height: 700, image: { x: 0, y: 200, width: 1000, height: 500 } };
+    assert.deepEqual(panelRect({ x: 50, y: 10, w: 50, h: 40 }, f), {
+      x: 500,
+      y: 250,
+      width: 500,
+      height: 200,
+    });
+  });
+
+  const square = { width: 100, height: 100 };
+  const at = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
+
+  it('crops a picture to cover a panel, about its middle', () => {
+    // A square picture in a wide panel: all of its width, the middle of its height.
+    assert.deepEqual(crop(FILL_DEFAULT, square, at(10, 20, 200, 100)), {
+      source: at(0, 25, 100, 50),
+      target: at(10, 20, 200, 100),
+    });
+  });
+
+  it('crops closer with the zoom, about its point, without running past the edges', () => {
+    const into = at(0, 0, 100, 100);
+    assert.deepEqual(crop({ zoom: 2, x: 25, y: 50 }, square, into).source, at(0, 25, 50, 50));
+    assert.deepEqual(crop({ zoom: 2, x: 100, y: 0 }, square, into).source, at(50, 0, 50, 50));
+  });
+
+  it('shows more of it further, in the middle of the panel when it no longer covers it', () => {
+    const into = at(0, 0, 200, 100);
+    assert.deepEqual(crop({ zoom: 0.5, x: 0, y: 0 }, square, into), {
+      source: at(0, 0, 100, 100),
+      target: at(50, 0, 100, 100),
+    });
+    assert.deepEqual(crop({ zoom: 0.25, x: 50, y: 50 }, square, into).target, at(75, 25, 50, 50));
+    assert.equal(fitZoom(square, into), 0.5);
+    assert.equal(fitZoom({ width: 300, height: 100 }, { width: 100, height: 100 }), 0.333);
+  });
+
+  it('fits a very wide picture whole', () => {
+    const wide = { width: 2000, height: 100 };
+    const into = at(0, 0, 100, 100);
+    const zoom = fitZoom(wide, into);
+    assert.equal(zoom, 0.05);
+    assert.deepEqual(crop({ zoom, x: 50, y: 50 }, wide, into).source, at(0, 0, 2000, 100));
+  });
+
+  it('pans the picture with the drag, and back from an edge at once', () => {
+    const wide = { width: 200, height: 100 };
+    // 2 px of the result are 1 px of the picture: dragging down shows more of its top.
+    assert.deepEqual(pan(FILL_DEFAULT, square, wide, 0, 20), { x: 50, y: 40 });
+    // Not past its edges.
+    assert.deepEqual(pan(FILL_DEFAULT, square, wide, 0, 200), { x: 50, y: 25 });
+    assert.deepEqual(pan(FILL_DEFAULT, square, wide, 300, 0), { x: 50, y: 50 });
+    // From a point beyond the edge, from where the picture is.
+    assert.deepEqual(pan({ zoom: 1, x: 50, y: 0 }, square, wide, 0, -20), { x: 50, y: 35 });
+  });
+
+  it('pans by a little, close up on a very wide picture', () => {
+    // As an arrow key does: 0.5% of the panel.
+    const moved = pan({ zoom: 5, x: 50, y: 50 }, { width: 2000, height: 100 }, square, 0.5, 0);
+    assert.ok(moved.x < 50, String(moved.x));
+  });
+});
+
 describe('rotationTo / snap', () => {
   it('points the top of a box at a point', () => {
     const c = { x: 100, y: 100 };
@@ -345,7 +416,7 @@ function recorder(): { ctx: Ctx<string>; calls: string[] } {
       calls.push(`stroke "${s}" ${n(x)} ${n(y)} ${ctx.strokeStyle} ${n(ctx.lineWidth)}`),
     clearRect: () => calls.push('clear'),
     fillRect: (x, y, w, h) => calls.push(`fillRect ${x} ${y} ${w} ${h} ${ctx.fillStyle}`),
-    drawImage: (image, x, y, w, h) => calls.push(`image ${image} ${n(x)} ${n(y)} ${n(w)} ${n(h)}`),
+    drawImage: (image: string, ...at: number[]) => calls.push(`image ${image} ${at.map(n).join(' ')}`),
   };
   return { ctx, calls };
 }
@@ -430,6 +501,35 @@ describe('paint', () => {
     ]);
   });
 
+  it('draws the pictures in the panels over the picture, under the images', () => {
+    const { ctx, calls } = recorder();
+    const panels = [
+      { x: 0, y: 0, w: 50, h: 100 },
+      { x: 50, y: 0, w: 50, h: 100 },
+    ];
+    const m = meme({
+      texts: [],
+      images: [{ ...IMAGE_DEFAULT, image: 'dog', w: 20 }],
+      fills: [
+        { ...FILL_DEFAULT, panel: 1, image: 'dog' },
+        { ...FILL_DEFAULT, panel: 0, image: 'missing' },
+        { ...FILL_DEFAULT, panel: 2, image: 'dog' },
+      ],
+    });
+    paint(ctx, m, FRAME, 'BASE', pictures, panels);
+    assert.deepEqual(calls, [
+      'clear',
+      'image BASE 0 0 1000 500',
+      // A 200 × 100 picture in a 500 × 500 panel: the middle of it.
+      'image DOG 50 0 100 100 500 0 500 500',
+      'save',
+      'translate 500 250',
+      'rotate 0',
+      'image DOG -100 -50 200 100',
+      'restore',
+    ]);
+  });
+
   it('fills the space around the picture first', () => {
     const { ctx, calls } = recorder();
     const m = meme({ texts: [], pad: { top: 50, right: 0, bottom: 0, left: 0 }, padColor: '#112233' });
@@ -476,6 +576,7 @@ describe('encode / decode', () => {
         { image: 'characters/doge', x: 10, y: 90, w: 55.5, rotation: 30, flip: true },
         { ...IMAGE_DEFAULT, image: 'characters/doge' },
       ],
+      fills: [],
       pad: { top: 25, right: 1, bottom: 0, left: 100 },
       padColor: '#000000',
       width: 640,
@@ -528,6 +629,51 @@ describe('encode / decode', () => {
     assert.deepEqual(decode(new URLSearchParams('t=alone')).texts, [text({ text: 'alone' })]);
     assert.equal(decode(new URLSearchParams(`t=${'x'.repeat(5000)}`)).texts[0].text.length, 1000);
     assert.equal(decode(new URLSearchParams('t=a&'.repeat(100))).texts.length, 40);
+  });
+});
+
+describe('encode / decode of a layout', () => {
+  const layout: Layout = {
+    panels: [
+      { x: 0, y: 0, w: 50, h: 100 },
+      { x: 50, y: 0, w: 50, h: 100 },
+    ],
+    texts: [text({ text: 'Title', y: 10 }), text({ x: 25, w: 40 })],
+  };
+
+  it('starts with its texts, and leaves them out', () => {
+    const m = blank(layout);
+    assert.deepEqual(m.texts, layout.texts);
+    assert.notEqual(m.texts[0], layout.texts[0]);
+    assert.equal(encode(m, layout).toString(), '');
+    assert.deepEqual(decode(new URLSearchParams(), layout), m);
+    // Without the layout, they're said.
+    assert.match(encode(m).toString(), /^t=Title&/);
+  });
+
+  it('round-trips the pictures in the panels', () => {
+    const m = blank(layout);
+    m.fills = [
+      { panel: 1, image: 'drake-hotline-bling', zoom: 2.5, x: 10, y: 99.9 },
+      { ...FILL_DEFAULT, image: 'distracted-boyfriend' },
+    ];
+    const params = encode(m, layout);
+    assert.equal(params.toString(), 'g=drake-hotline-bling&gs=n1_z2.5_x10_y99.9&g=distracted-boyfriend&gs=');
+    assert.deepEqual(decode(new URLSearchParams(params.toString()), layout), m);
+  });
+
+  it('leaves out uploaded pictures, panels that are not there and a second picture for a panel', () => {
+    const m = blank(layout);
+    m.fills = [{ ...FILL_DEFAULT, image: localKey(1) }];
+    assert.equal(encode(m, layout).toString(), '');
+    const fills = (query: string, of?: Layout) => decode(new URLSearchParams(query), of).fills;
+    assert.deepEqual(fills(`g=${localKey(1)}&gs=`, layout), []);
+    assert.deepEqual(fills('g=a&gs=n2&g=b&gs=n-1&g=c&gs=n0.5&g=d&gs=nx', layout), []);
+    assert.deepEqual(fills('g=a&gs=n1&g=b&gs=n1_z9', layout), [{ ...FILL_DEFAULT, panel: 1, image: 'a' }]);
+    assert.deepEqual(fills('g=a&gs=z0_x-5_y500', layout), [
+      { ...FILL_DEFAULT, image: 'a', zoom: 0.01, x: 0, y: 100 },
+    ]);
+    assert.deepEqual(fills('g=a&gs='), []);
   });
 });
 
