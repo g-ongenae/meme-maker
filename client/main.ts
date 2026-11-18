@@ -21,6 +21,7 @@ import {
 import { $ } from './dom.ts';
 import { createEditor, isEditorHash } from './editor.ts';
 import { createHelp } from './help.ts';
+import { createMenu } from './menu.ts';
 import { editHash, parseEditHash } from './meme.ts';
 import { createMemeEditor } from './meme-editor.ts';
 import { GO_DELAY, goToCategory } from './shortcuts.ts';
@@ -821,6 +822,21 @@ viewer.addEventListener('close', () => {
   if (!isEditorHash(location.hash)) setHash('');
 });
 window.addEventListener('hashchange', openFromHash);
+
+// Opens the background editor. Not by setting location.hash: going to #editor, the dialog's id,
+// moves the focus off what opened it, so closing the editor couldn't give it back.
+function openEditor(): void {
+  history.pushState(null, '', '#editor');
+  openFromHash();
+}
+const createDropdown = createMenu('createButton', 'createMenu');
+$('createBackground').addEventListener('click', (e) => {
+  // A middle or modified click still opens it in a new tab or window.
+  if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  createDropdown.close();
+  openEditor();
+});
 $('createFromImage').addEventListener('click', () => importImage.click());
 importImage.addEventListener('change', () => {
   createFrom(importImage.files?.[0]);
@@ -998,9 +1014,15 @@ document.addEventListener('keydown', (e) => {
   else if (key === 's' || key === '/') {
     closeViewer();
     search.select();
-  } else if (key === 'n') location.hash = '#editor';
+  } else if (key === 'n') {
+    createDropdown.close();
+    openEditor();
+  } else if (key === 'i') importImage.click();
   else handled = viewer.open ? viewerKey(key) : gridKey(key);
-  if (handled) e.preventDefault();
+  if (!handled) return;
+  e.preventDefault();
+  // A shortcut used from the Create menu doesn't leave it open behind.
+  createDropdown.close();
 });
 search.addEventListener('input', render);
 category.addEventListener('change', render);
