@@ -192,3 +192,10 @@ npm test                # node --test on every *.test.ts
 ```
 
 CI (`.github/workflows/ci.yml`) runs all four on every push to `main` and every pull request.
+
+## License
+
+The code is under the [MIT License](LICENSE). It doesn't cover the meme templates or the
+characters cut out of them, which belong to their respective owners (see the
+[terms of use](TERMS.md#the-templates)), nor the [Anton](https://fonts.google.com/specimen/Anton)
+font, which is under the SIL Open Font License.
