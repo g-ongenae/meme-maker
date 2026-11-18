@@ -60,6 +60,12 @@ describe('layouts', () => {
   it('has a demotivational poster of one panel in the frame, a title and a line under it', () => {
     const { panels, texts } = layoutOf('black-box-meme')!;
     assert.equal(panels.length, 1);
+    // Inside the frame of the 251×201 picture, in px.
+    const [p] = panels;
+    assert.deepEqual(
+      [(p.x / 100) * 251, (p.y / 100) * 201, (p.w / 100) * 251, (p.h / 100) * 201].map(Math.round),
+      [25, 16, 201, 135],
+    );
     assert.equal(texts.length, 2);
     const [title, line] = texts;
     const bottom = panels[0].y + panels[0].h;
