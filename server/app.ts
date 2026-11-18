@@ -4,6 +4,9 @@
 //   GET /style.css        → public/style.css
 //   GET /icon.svg         → assets/icon.svg
 //   GET /js/<file>.js     → the compiled client (dist/client/, `npm run build`)
+//   GET /fonts/anton-<subset>.woff2
+//                         → the Anton font of @fontsource/anton, the meme
+//                           editor's stand-in for Impact
 //   GET /api/templates    → data/templates/index.json
 //   GET /api/characters   → data/characters/index.json
 //   GET /img/<file>       → full-size image (or .mp4 animated template) from
@@ -32,6 +35,8 @@ export interface AppOptions {
   charactersDir?: string;
   /** Defaults to <root>/data/thumbs. */
   thumbsDir?: string;
+  /** Defaults to the files of @fontsource/anton in <root>/node_modules. */
+  fontsDir?: string;
   /** Resolves to sharp, or null to serve originals as thumbnails. */
   sharp?: Promise<SharpFactory | null>;
 }
@@ -57,6 +62,7 @@ const TYPES: Record<string, string> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.mp4': 'video/mp4',
+  '.woff2': 'font/woff2',
 };
 
 const typeOf = (file: string): string | undefined => TYPES[path.extname(file).toLowerCase()];
@@ -169,6 +175,7 @@ export function createApp({
   templatesDir = path.join(root, 'data/templates'),
   charactersDir = path.join(root, 'data/characters'),
   thumbsDir = path.join(root, 'data/thumbs'),
+  fontsDir = path.join(root, 'node_modules/@fontsource/anton/files'),
   sharp = loadSharp(),
 }: AppOptions): Handler {
   const clientDir = path.join(root, 'dist/client');
@@ -218,6 +225,9 @@ export function createApp({
 
     const script = pathname.match(/^\/js\/([\w-]+\.js)$/);
     if (script) return sendFile(req, res, path.join(clientDir, script[1]));
+
+    const font = pathname.match(/^\/fonts\/anton-(latin|latin-ext)\.woff2$/);
+    if (font) return sendFile(req, res, path.join(fontsDir, `anton-${font[1]}-400-normal.woff2`));
 
     const match = pathname.match(/^\/(img|thumb)\/(characters\/)?([^/]+)$/);
     const name = match && safeName(match[3], match[1] === 'img' && !match[2]);

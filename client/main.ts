@@ -4,7 +4,8 @@
 // characters cut out of it). Characters are listed as templates of their own.
 // Diagrams aren't templates but open in the same viewer: rendered by
 // mermaid.ink, with their formats (themes, looks) as alternatives, and a link
-// to edit them in the Mermaid live editor.
+// to edit them in the Mermaid live editor. "Edit" opens the template on show
+// in the meme editor, over the viewer.
 
 import { type Category, CATEGORIES, categoryOf, isCategory } from './categories.ts';
 import { type Character, withCharacters } from './characters.ts';
@@ -19,6 +20,8 @@ import {
 } from './diagrams.ts';
 import { $ } from './dom.ts';
 import { createEditor, isEditorHash } from './editor.ts';
+import { editHash, parseEditHash } from './meme.ts';
+import { createMemeEditor } from './meme-editor.ts';
 import {
   type Duplicate,
   type SearchKeys,
@@ -32,6 +35,7 @@ import {
   match,
   searchKeys,
   searchWords,
+  stillUrl,
   thumbUrl,
 } from './templates.ts';
 
@@ -47,6 +51,7 @@ const bigVideo = $<HTMLVideoElement>('bigVideo');
 const prev = $<HTMLButtonElement>('prev');
 const next = $<HTMLButtonElement>('next');
 const aliasesEl = $<HTMLParagraphElement>('aliases');
+const editLink = $<HTMLAnchorElement>('edit');
 const openLink = $<HTMLAnchorElement>('open');
 const downloadLink = $<HTMLAnchorElement>('download');
 const sourceLink = $<HTMLAnchorElement>('source');
@@ -60,9 +65,20 @@ const formatList = $<HTMLUListElement>('formatList');
 const variations = $('variations');
 const variationList = $<HTMLUListElement>('variationList');
 const relatedEmpty = $('relatedEmpty');
+// The meme editor opens over the viewer, or over the background editor for a
+// background made there: closing it goes back to what's underneath.
+const memeEditor = createMemeEditor({
+  onClose: (base) => {
+    if (base.link && parseEditHash(location.hash)) setHash(viewer.open && current ? current.id : '');
+  },
+});
 const editor = createEditor({
   onClose: () => {
     if (isEditorHash(location.hash)) setHash('');
+  },
+  onCaption: (picture) => {
+    const src = URL.createObjectURL(picture);
+    memeEditor.open({ name: 'Custom background', src, dispose: () => URL.revokeObjectURL(src) });
   },
 });
 
@@ -446,6 +462,9 @@ function display(card: Card, t: Duplicate): void {
     (from ? `Cut out of “${from.name}”` : `#${t.rank} on ${t.source.site}`) +
     ` · ${t.width} × ${t.height} · ${t.file.split('.').pop()?.toUpperCase()}` +
     (t.animated ? ' · animated' : '');
+  editLink.href = editHash({ id: card.id, ...(!own && { file: t.file }) });
+  editLink.textContent = t.animated ? 'Edit still' : 'Edit';
+  editLink.hidden = !stillUrl(t);
   openLink.href = imgUrl(t);
   downloadLink.href = imgUrl(t);
   downloadLink.download = t.file.split('/').pop() ?? t.file;
@@ -541,6 +560,7 @@ function displayDiagram(card: DiagramCard, format: DiagramFormat): void {
   sourceLink.href = openLink.href = downloadLink.href = editorUrl(d, format);
   sourceLink.textContent = 'Edit in mermaid.live';
   kymLink.hidden = true;
+  editLink.hidden = true;
   downloadLink.download = `${d.id}-${format.id}.png`;
   for (const li of formatList.children) {
     const button = li.firstElementChild;
@@ -626,7 +646,8 @@ function togglePanel(): void {
   setPanel(panelOpen);
 }
 
-function show(card: Entry): void {
+// Shows a card in the viewer, and in the URL hash unless it's kept as it is.
+function show(card: Entry, keepHash = false): void {
   current = card;
   let aliases: string[];
   if (isDiagram(card)) {
@@ -648,8 +669,16 @@ function show(card: Entry): void {
   const many = visible.length > 1 && visible.includes(card);
   prev.hidden = next.hidden = !many;
 
-  setHash(card.id);
+  if (!keepHash) setHash(card.id);
   if (!viewer.open) viewer.showModal();
+}
+
+// Opens the meme editor on a file of a template: its own, or a duplicate's.
+function edit(card: Card, t: Duplicate, params?: URLSearchParams): void {
+  const src = stillUrl(t);
+  if (!src) return;
+  const file = t === card.template ? undefined : t.file;
+  memeEditor.open({ name: card.template.name, src, link: { id: card.id, ...(file && { file }) } }, params);
 }
 
 function step(delta: number): void {
@@ -658,14 +687,36 @@ function step(delta: number): void {
   show(visible[(i + delta + visible.length) % visible.length]);
 }
 
+// What a hash names, which is nothing when it isn't a well-formed address.
+function idOf(hash: string): string {
+  try {
+    return decodeURIComponent(hash.slice(1));
+  } catch {
+    return '';
+  }
+}
+
 function openFromHash(): void {
   if (isEditorHash(location.hash)) {
     if (viewer.open) viewer.close();
+    if (memeEditor.isOpen) memeEditor.close();
     editor.open(new URLSearchParams(location.hash.split('?')[1]));
     return;
   }
   if (editor.isOpen) editor.close();
-  const id = decodeURIComponent(location.hash.slice(1));
+  const link = parseEditHash(location.hash);
+  const edited = link && byId.get(link.id);
+  if (link && edited) {
+    // Over the viewer, on the file that is edited.
+    const t = edited.template;
+    const file = (t.duplicates ?? []).find((d) => d.file === link.file) ?? t;
+    show(edited, true);
+    if (file !== t) display(edited, file);
+    edit(edited, file, link.params);
+    return;
+  }
+  if (memeEditor.isOpen) memeEditor.close();
+  const id = idOf(location.hash);
   const card = id ? (byId.get(id) ?? diagramById.get(id)) : undefined;
   if (card) show(card);
   else if (viewer.open) viewer.close();
@@ -706,8 +757,13 @@ variationList.addEventListener('click', (e) => {
   const link = (e.target as Element).closest('a');
   if (!link || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
   e.preventDefault();
-  const card = byId.get(decodeURIComponent(link.hash.slice(1)));
+  const card = byId.get(idOf(link.hash));
   if (card) show(card);
+});
+editLink.addEventListener('click', (e) => {
+  if (!current || isDiagram(current) || !shown || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  edit(current, shown);
 });
 downloadLink.addEventListener('click', (e) => {
   if (!current || !isDiagram(current) || !shownFormat || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -733,7 +789,13 @@ viewer.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (e.key === 'ArrowLeft') step(-1);
   else if (e.key === 'ArrowRight') step(1);
-  else if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey && !e.altKey) togglePanel();
+  else if (e.ctrlKey || e.metaKey || e.altKey) return;
+  else if (e.key.toLowerCase() === 'a') togglePanel();
+  else if (e.key.toLowerCase() === 'e' && current && !isDiagram(current) && shown) {
+    // Or the key would be typed in the editor's first text, which takes the focus.
+    e.preventDefault();
+    edit(current, shown);
+  }
 });
 window.addEventListener('hashchange', openFromHash);
 document.addEventListener('keydown', (e) => {
@@ -756,6 +818,7 @@ async function init(): Promise<void> {
   cards = withCharacters(templates, characters).map(buildCard);
   byId = new Map(cards.map((c) => [c.template.id, c]));
   editor.setLibrary(cards.map((c) => c.template));
+  memeEditor.setLibrary(cards.map((c) => c.template));
   fillCategories();
 
   const params = new URLSearchParams(location.search);

@@ -92,6 +92,7 @@
           <a id="download">Download</a>
           <a id="source" target="_blank" rel="noopener">View on imgflip</a>
           <a id="kym" target="_blank" rel="noopener">View on Know Your Meme</a>
+          <a id="edit" class="primary" title="Add text and images to it (E)">Edit</a>
         </div>
       </div>
     </dialog>
@@ -203,7 +204,147 @@
         </div>
         <div class="actions">
           <button id="editorReset" type="button">Reset</button>
+          <button id="editorCaption" type="button" title="Make a meme of this background">Add text…</button>
           <button id="editorDownload" class="primary" type="button">Download PNG</button>
+        </div>
+      </div>
+    </dialog>
+    <dialog id="meme" aria-labelledby="memeTitle">
+      <div id="memeStage" class="editor-stage">
+        <div id="memeCanvas" class="editor-canvas meme-canvas">
+          <canvas id="memePicture" aria-label="Meme preview"></canvas>
+          <span id="guideX" class="guide guide-x" hidden></span>
+          <span id="guideY" class="guide guide-y" hidden></span>
+          <div id="memeLayers" class="layers"></div>
+        </div>
+        <button id="memeClose" class="close" type="button" aria-label="Close">✕</button>
+        <p id="memeDrop" class="drop-hint" hidden>Drop the image to add it</p>
+        <p id="memeLayerHelp" hidden>
+          The arrow keys move it, with Alt they resize it, and Delete removes it. Enter goes to a text’s
+          field.
+        </p>
+      </div>
+      <form id="memeForm" class="editor-panel">
+        <h2 id="memeTitle">Edit meme</h2>
+        <section>
+          <h4>Texts</h4>
+          <ul id="memeTexts" class="texts"></ul>
+          <div class="buttons">
+            <button id="addText" class="small" type="button">Add text</button>
+            <button
+              id="addCaption"
+              class="small"
+              type="button"
+              title="Adds white space above the picture, with a text in it"
+            >
+              Add caption above
+            </button>
+          </div>
+          <p class="hint">
+            Drag a text on the picture to move it, and its corners to resize it. The arrow keys move it too,
+            and resize it with Alt.
+          </p>
+        </section>
+
+        <section id="textStyle" hidden>
+          <h4 id="textStyleLabel">Text style</h4>
+          <div id="textStyles" class="segmented" role="group" aria-label="Style"></div>
+          <label class="row"
+            >Font
+            <select name="font"></select
+          ></label>
+          <label class="range">Size <input type="range" name="size" /><output></output></label>
+          <div class="row">
+            <label class="row">Colour <input type="color" name="color" /></label>
+            <label class="row">Outline <input type="color" name="outline" /></label>
+          </div>
+          <label class="range">Outline <input type="range" name="outlineWidth" /><output></output></label>
+          <div id="aligns" class="segmented" role="radiogroup" aria-label="Alignment"></div>
+          <div id="valigns" class="segmented" role="radiogroup" aria-label="Vertical alignment"></div>
+          <div class="checks">
+            <label><input type="checkbox" name="caps" /> All capitals</label>
+            <label><input type="checkbox" name="bold" /> Bold</label>
+          </div>
+          <label class="range"
+            >Rotation <input type="range" name="rotation" data-unit="°" /><output></output
+          ></label>
+          <div class="buttons">
+            <button id="duplicateText" class="small" type="button">Duplicate</button>
+            <button id="styleAll" class="small" type="button" title="Gives every text this one’s style">
+              Apply style to all
+            </button>
+          </div>
+        </section>
+
+        <section>
+          <h4>Images</h4>
+          <input
+            id="stickerSearch"
+            type="search"
+            placeholder="Search characters…"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Search characters"
+          />
+          <ul id="stickers" class="library"></ul>
+          <p id="stickersEmpty" class="hint">
+            No characters in the library yet. Upload an image (a PNG with a transparent background works
+            best), or drop or paste one here.
+          </p>
+          <div class="buttons">
+            <button id="stickerUpload" class="small" type="button">Upload…</button>
+            <input id="stickerFile" type="file" accept="image/*" multiple hidden />
+          </div>
+          <div id="imageStyle" class="subsection" hidden>
+            <label class="range"
+              >Size <input type="range" name="imageSize" data-unit="%" /><output></output
+            ></label>
+            <label class="range"
+              >Rotation <input type="range" name="imageRotation" data-unit="°" /><output></output
+            ></label>
+            <div class="checks">
+              <label><input type="checkbox" name="flip" /> Flip</label>
+            </div>
+            <div class="buttons">
+              <button id="duplicateImage" class="small" type="button">Duplicate</button>
+              <button id="removeSticker" class="small" type="button">Remove</button>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h4>Space around</h4>
+          <label class="range">Top <input type="range" name="top" data-unit="%" /><output></output></label>
+          <label class="range"
+            >Bottom <input type="range" name="bottom" data-unit="%" /><output></output
+          ></label>
+          <label class="range">Left <input type="range" name="left" data-unit="%" /><output></output></label>
+          <label class="range"
+            >Right <input type="range" name="right" data-unit="%" /><output></output
+          ></label>
+          <label class="row">Colour <input type="color" name="padColor" /></label>
+        </section>
+
+        <section>
+          <h4>Width</h4>
+          <div class="size">
+            <input type="number" name="width" aria-label="Width" />
+            <span>px</span>
+          </div>
+          <p class="hint">Empty for the picture’s own size.</p>
+        </section>
+      </form>
+      <div class="info">
+        <div>
+          <h2 id="memeName"></h2>
+          <p id="memeMeta"></p>
+        </div>
+        <div class="actions">
+          <button id="memeUndo" type="button" title="Undo (Ctrl+Z)">Undo</button>
+          <button id="memeRedo" type="button" title="Redo (Ctrl+Shift+Z)">Redo</button>
+          <button id="memeReset" type="button">Reset</button>
+          <button id="memeCopy" type="button" title="Copy the picture to the clipboard">Copy</button>
+          <button id="memeDownload" class="primary" type="button">Download PNG</button>
         </div>
       </div>
     </dialog>

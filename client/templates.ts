@@ -55,6 +55,10 @@ export const imgUrl = (t: Media): string => `/img/${encodePath(t.file)}`;
 // Animated templates are .mp4 files: their thumbnail comes from the poster.
 export const thumbUrl = (t: Media): string => `/thumb/${encodePath(t.poster ?? t.file)}`;
 
+/** The picture to draw on: the image itself, or the still of an animated template. */
+export const stillUrl = (t: Media & Pick<Template, 'animated'>): string | null =>
+  !t.animated ? imgUrl(t) : t.poster ? imgUrl({ file: t.poster }) : null;
+
 /**
  * The meme's page on Know Your Meme, found by searching its name: its pages are
  * named after the meme, not the template, so there's no direct link to it.
