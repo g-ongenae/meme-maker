@@ -28,6 +28,7 @@ import {
   parseEditHash,
   place,
   resize,
+  sizeRange,
   rotationTo,
   snap,
   starter,
@@ -160,8 +161,39 @@ describe('resize', () => {
   });
 
   it('stops at the minimum, not flipping over', () => {
-    const r = resize(box, [1, 1], { x: -500, y: -500 }, { min: 10 });
+    const r = resize(box, [1, 1], { x: -500, y: -500 }, { min: { width: 10, height: 10 } });
     assert.deepEqual([r.width, r.height, r.cx, r.cy], [10, 10, 55, 75]);
+  });
+
+  it('stops at the maximum', () => {
+    const r = resize(box, [1, 1], { x: 5000, y: 5000 }, { max: { width: 300, height: 90 } });
+    assert.deepEqual([r.width, r.height, r.cx, r.cy], [300, 90, 200, 115]);
+    const kept = resize(
+      box,
+      [1, 1],
+      { x: 5000, y: 5000 },
+      { max: { width: 300, height: 90 }, ratio: 100 / 60 },
+    );
+    close(kept.width, 150);
+    close(kept.height, 90);
+  });
+
+  it('keeps the opposite corner where the limits of a box stop it', () => {
+    // Wide and low: 2% of its width is a lot more than 3% of its height.
+    const f = frameOf(meme(), { width: 1000, height: 100 });
+    const origin = place({ x: 50, y: 50, w: 4, h: 50, rotation: 0 }, f);
+    const left = origin.cx - origin.width / 2;
+    const top = origin.cy - origin.height / 2;
+    for (const to of [
+      { x: -900, y: -900 },
+      { x: 9000, y: 9000 },
+    ]) {
+      const p = place(unplace(resize(origin, [1, 1], to, sizeRange(f, 'text')), f), f);
+      close(p.cx - p.width / 2, left, 'left');
+      close(p.cy - p.height / 2, top, 'top');
+    }
+    const image = sizeRange(f, 'image');
+    assert.deepEqual([image.min.height, image.max.height], [0, Infinity]);
   });
 
   it('keeps the proportions when asked', () => {
@@ -477,10 +509,19 @@ describe('encode / decode', () => {
       ),
     );
     assert.deepEqual(m.texts, [text({ text: 'hi', x: 200, size: 1, outlineWidth: 0 })]);
-    assert.deepEqual(m.pad, { top: 100, right: 0, bottom: 3, left: 0 });
+    assert.deepEqual(m.pad, { top: 0, right: 0, bottom: 0, left: 0 });
     assert.equal(m.padColor, '#ffffff');
     assert.equal(m.width, 0);
     assert.equal(decode(new URLSearchParams('w=99999')).width, 4000);
+  });
+
+  it('takes the space around as a whole', () => {
+    const pad = (p: string) => decode(new URLSearchParams({ p })).pad;
+    assert.deepEqual(pad('500-0-3-20'), { top: 100, right: 0, bottom: 3, left: 20 });
+    // A sign is a separator too: the sides after it would each be taken for the next.
+    for (const p of ['-1-20-30-40', '1-20-30', '1-20-30-40-50', '1-x-30-40', '1--30-40', '1e1-0-0-0', '']) {
+      assert.deepEqual(pad(p), { top: 0, right: 0, bottom: 0, left: 0 }, p);
+    }
   });
 
   it('takes a text without fields, and limits how long and how many they are', () => {

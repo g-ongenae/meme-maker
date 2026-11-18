@@ -69,15 +69,17 @@ const relatedEmpty = $('relatedEmpty');
 // background made there: closing it goes back to what's underneath.
 const memeEditor = createMemeEditor({
   onClose: (base) => {
-    if (!base.link) URL.revokeObjectURL(base.src);
-    else if (parseEditHash(location.hash)) setHash(viewer.open && current ? current.id : '');
+    if (base.link && parseEditHash(location.hash)) setHash(viewer.open && current ? current.id : '');
   },
 });
 const editor = createEditor({
   onClose: () => {
     if (isEditorHash(location.hash)) setHash('');
   },
-  onCaption: (picture) => memeEditor.open({ name: 'Custom background', src: URL.createObjectURL(picture) }),
+  onCaption: (picture) => {
+    const src = URL.createObjectURL(picture);
+    memeEditor.open({ name: 'Custom background', src, dispose: () => URL.revokeObjectURL(src) });
+  },
 });
 
 // Viewer preferences, remembered across visits (storage can be unavailable).
@@ -685,6 +687,15 @@ function step(delta: number): void {
   show(visible[(i + delta + visible.length) % visible.length]);
 }
 
+// What a hash names, which is nothing when it isn't a well-formed address.
+function idOf(hash: string): string {
+  try {
+    return decodeURIComponent(hash.slice(1));
+  } catch {
+    return '';
+  }
+}
+
 function openFromHash(): void {
   if (isEditorHash(location.hash)) {
     if (viewer.open) viewer.close();
@@ -705,7 +716,7 @@ function openFromHash(): void {
     return;
   }
   if (memeEditor.isOpen) memeEditor.close();
-  const id = decodeURIComponent(location.hash.slice(1));
+  const id = idOf(location.hash);
   const card = id ? (byId.get(id) ?? diagramById.get(id)) : undefined;
   if (card) show(card);
   else if (viewer.open) viewer.close();
@@ -746,7 +757,7 @@ variationList.addEventListener('click', (e) => {
   const link = (e.target as Element).closest('a');
   if (!link || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
   e.preventDefault();
-  const card = byId.get(decodeURIComponent(link.hash.slice(1)));
+  const card = byId.get(idOf(link.hash));
   if (card) show(card);
 });
 editLink.addEventListener('click', (e) => {

@@ -82,8 +82,8 @@ the top and one at the bottom: type, and download.
 
 - **Texts**: each has a field in the panel and a box on the picture. Drag the box to move
   it (it snaps to the middle of the picture, unless <kbd>Alt</kbd> is held), its corners to
-  resize it and the handle above it to rotate it; the arrow keys nudge it and
-  <kbd>Delete</kbd> removes it. A text wraps in its box, and shrinks to fit it. Typing on a
+  resize it and the handle above it to rotate it; the arrow keys nudge it, resize it with
+  <kbd>Alt</kbd>, and <kbd>Delete</kbd> removes it. A text wraps in its box, and shrinks to fit it. Typing on a
   box, or double-clicking it, goes to its field.
 - **Text style**: “Classic” (white Impact capitals with a black outline), “Plain” (black
   Arial) or “Label” (bold white with an outline), or its own font, size, colours, outline,

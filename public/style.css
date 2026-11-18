@@ -801,6 +801,11 @@ dialog::backdrop {
   background: var(--accent-text);
   color: #fff;
 }
+.actions .primary:disabled {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
 
 /* Meme editor: a box over the preview for each layer, to move it by, with
    handles at the corners of the selected one, and one above to rotate it. */

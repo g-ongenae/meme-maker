@@ -317,16 +317,46 @@ export function fitWidth(natural: Size, picture: Size, share = 40): number {
 /** A corner of a box: left or right (-1, 1), then top or bottom (-1, 1). */
 export type Corner = readonly [-1 | 1, -1 | 1];
 
+/** The sizes a box can have, in px. */
+export interface SizeRange {
+  min: Size;
+  max: Size;
+}
+
+/**
+ * The sizes `unplace` keeps as they are, and no smaller than can be grabbed.
+ * An image's height follows from its width: only that one is limited.
+ */
+export function sizeRange(f: Frame, kind: 'text' | 'image'): SizeRange {
+  const grip = Math.min(f.image.width, f.image.height) * 0.03;
+  const width = (percent: number): number => (f.image.width * percent) / 100;
+  const height = (percent: number): number => (f.image.height * percent) / 100;
+  return {
+    min: {
+      width: Math.max(grip, width(LIMITS.w.min)),
+      height: kind === 'image' ? 0 : Math.max(grip, height(LIMITS.h.min)),
+    },
+    max: { width: width(LIMITS.w.max), height: kind === 'image' ? Infinity : height(LIMITS.h.max) },
+  };
+}
+
+const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
+
+const UNLIMITED: SizeRange = { min: { width: 1, height: 1 }, max: { width: Infinity, height: Infinity } };
+
 /**
  * A box with one corner dragged to a point, the opposite corner staying where
- * it is, whatever its angle. `ratio` (width / height) keeps its proportions.
+ * it is, whatever its angle and whichever limit stops it. `ratio` (width /
+ * height) keeps its proportions.
  */
 export function resize(
   p: Placed,
   [sx, sy]: Corner,
   to: Point,
-  { min = 1, ratio }: { min?: number; ratio?: number } = {},
+  { min, max, ratio }: Partial<SizeRange> & { ratio?: number } = {},
 ): Placed {
+  const lo = min ?? UNLIMITED.min;
+  const hi = max ?? UNLIMITED.max;
   const cos = Math.cos(p.angle);
   const sin = Math.sin(p.angle);
   const ox = p.cx - ((sx * p.width) / 2) * cos + ((sy * p.height) / 2) * sin;
@@ -334,10 +364,12 @@ export function resize(
   // The point, from the fixed corner, along the box's own axes.
   const dx = (to.x - ox) * cos + (to.y - oy) * sin;
   const dy = -(to.x - ox) * sin + (to.y - oy) * cos;
-  let width = Math.max(min, sx * dx);
-  let height = Math.max(min, sy * dy);
+  let width = clamp(sx * dx, lo.width, hi.width);
+  let height = clamp(sy * dy, lo.height, hi.height);
   if (ratio) {
-    width = Math.max(width, height * ratio);
+    const most = Math.min(hi.width, hi.height * ratio);
+    const least = Math.min(most, Math.max(lo.width, lo.height * ratio));
+    width = clamp(Math.max(sx * dx, sy * dy * ratio), least, most);
     height = width / ratio;
   }
   return {
@@ -655,8 +687,11 @@ export function decode(params: URLSearchParams): Meme {
     .getAll('i')
     .slice(0, MAX_LAYERS)
     .flatMap((image, i) => (image && !isLocal(image) ? decodeImage(image, imageFields[i] ?? '') : []));
+  // All four sides or none: a part that isn't a size would pass the others on to the wrong sides.
   const pad = (params.get('p') ?? '').split('-');
-  PAD_SIDES.forEach((side, i) => (m.pad[side] = number('pad', pad[i], 0)));
+  if (pad.length === PAD_SIDES.length && pad.every((part) => /^\d+(\.\d+)?$/.test(part))) {
+    PAD_SIDES.forEach((side, i) => (m.pad[side] = number('pad', pad[i], 0)));
+  }
   m.padColor = normalizeColor(params.get('pc') ?? '') ?? m.padColor;
   const width = Number(params.get('w') ?? '');
   if (Number.isFinite(width) && width > 0) m.width = clampField('width', width);

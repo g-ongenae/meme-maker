@@ -45,6 +45,7 @@ import {
   resize,
   rotationTo,
   shownText,
+  sizeRange,
   snap,
   styleKeyOf,
   styleOf,
@@ -60,6 +61,8 @@ export interface Base {
   src: string;
   /** The template it is, for the design to be kept in the URL hash: not for a local picture. */
   link?: { id: string; file?: string };
+  /** Called once the editor is done with the picture: closed, or opened on another. */
+  dispose?(): void;
 }
 
 export interface MemeEditor {
@@ -115,6 +118,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   const undoButton = $<HTMLButtonElement>('memeUndo');
   const redoButton = $<HTMLButtonElement>('memeRedo');
   const copyButton = $<HTMLButtonElement>('memeCopy');
+  const downloadButton = $<HTMLButtonElement>('memeDownload');
 
   let base: Base | null = null;
   let picture: HTMLImageElement | null = null; // the base's, once loaded
@@ -125,10 +129,10 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   let byId = new Map<string, Template>();
   let drag: Drag | null = null;
   let uploads = 0;
-  let fontsAsked = false;
+  let fonts: Promise<unknown> | null = null;
   const locals = new Map<string, string>(); // object URLs of the uploaded images, by key
   const loaded = new Map<string, HTMLImageElement>(); // the layers' images, by address
-  const asked = new Set<string>();
+  const loading = new Map<string, Promise<void>>(); // those asked for, done one way or the other
   const drafts = new Map<string, string>(); // the design left on each template, by address
 
   // --- static controls
@@ -193,21 +197,33 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     return (t && stillUrl(t)) ?? undefined;
   };
 
+  /** Loads an image, once. One that can't be is left out, of the preview and of the result. */
+  function load(src: string): Promise<void> {
+    if (loaded.has(src)) return Promise.resolve();
+    let settled = loading.get(src);
+    if (!settled) {
+      settled = new Promise((resolve) => {
+        const el = new Image();
+        el.onload = () => {
+          loaded.set(src, el);
+          draw();
+          resolve();
+        };
+        el.onerror = () => resolve();
+        el.src = src;
+      });
+      loading.set(src, settled);
+    }
+    return settled;
+  }
+
   /** A layer's image once it's loaded, which it's asked to here. */
   function pictureOf(image: string): Picture<HTMLImageElement> | undefined {
     const src = sourceOf(image);
     if (!src) return undefined;
     const img = loaded.get(src);
     if (img) return { image: img, width: img.naturalWidth, height: img.naturalHeight };
-    if (!asked.has(src)) {
-      asked.add(src);
-      const el = new Image();
-      el.onload = () => {
-        loaded.set(src, el);
-        draw();
-      };
-      el.src = src;
-    }
+    void load(src);
     return undefined;
   }
 
@@ -215,12 +231,12 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   const sizeOf = (image: string): Size | undefined => pictureOf(image) ?? byId.get(image);
 
   // The canvas draws in a font only once it's loaded.
-  function loadFonts(): void {
-    if (fontsAsked) return;
-    fontsAsked = true;
+  function loadFonts(): Promise<unknown> {
+    if (fonts) return fonts;
     const font = fontOf({ font: 'impact', bold: false }, 40);
     // A character of each range the font comes in.
-    void Promise.allSettled([document.fonts.load(font, 'A'), document.fonts.load(font, 'Ł')]).then(draw);
+    fonts = Promise.allSettled([document.fonts.load(font, 'A'), document.fonts.load(font, 'Ł')]).then(draw);
+    return fonts;
   }
 
   // --- drawing
@@ -253,6 +269,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     el.className = 'layer';
     el.tabIndex = 0;
     el.role = 'button';
+    el.setAttribute('aria-describedby', 'memeLayerHelp');
     for (const corner of CORNERS) {
       const handle = document.createElement('span');
       handle.className = 'handle';
@@ -485,8 +502,11 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     done();
   }
 
+  // There is room for an image once there is a picture to put it on.
+  const takesImage = (): boolean => !!picture && state.images.length < MAX_LAYERS;
+
   function addImage(image: string, size: Size): void {
-    if (state.images.length >= MAX_LAYERS || !picture) return;
+    if (!picture || !takesImage()) return;
     const w = fitWidth(size, { width: picture.naturalWidth, height: picture.naturalHeight });
     state.images.push({ ...IMAGE_DEFAULT, image, w });
     select({ kind: 'image', index: state.images.length - 1 });
@@ -508,11 +528,17 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   }
 
   function upload(files: Iterable<File>): void {
+    const on = base;
     for (const file of files) {
       if (!file.type.startsWith('image/')) continue;
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
+        // It's for the picture it was given to, which may be gone by the time it's read.
+        if (base !== on || !takesImage()) {
+          URL.revokeObjectURL(url);
+          return;
+        }
         const key = localKey(++uploads);
         locals.set(key, url);
         loaded.set(url, img);
@@ -524,6 +550,35 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       };
       img.src = url;
     }
+  }
+
+  // Uploaded images are kept for as long as a design that can come back has them.
+  function releaseUploads(): void {
+    const kept = new Set(
+      [...drafts.values()].flatMap((draft) => (JSON.parse(draft) as Meme).images.map((layer) => layer.image)),
+    );
+    for (const [key, url] of locals) {
+      if (kept.has(key)) continue;
+      URL.revokeObjectURL(url);
+      locals.delete(key);
+      loaded.delete(url);
+    }
+  }
+
+  /** Done with the picture at hand: what was about to be saved is, as its draft. */
+  function leave(): Base | null {
+    const left = base;
+    if (saveTimer && left?.link) drafts.set(left.src, JSON.stringify(state));
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    base = null;
+    picture = null;
+    frame = null;
+    drag = null;
+    downloadButton.disabled = copyButton.disabled = true;
+    releaseUploads();
+    left?.dispose?.();
+    return left;
   }
 
   // --- state from the controls
@@ -704,11 +759,17 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
 
   // --- result
 
-  const toBlob = (): Promise<Blob> =>
-    new Promise((resolve, reject) => {
-      render();
+  async function toBlob(): Promise<Blob> {
+    const of = base;
+    if (!of || !picture) throw new Error('no picture');
+    // What the preview is still waiting for would be missing from the result.
+    await Promise.all([loadFonts(), ...state.images.flatMap(({ image }) => sourceOf(image) ?? []).map(load)]);
+    if (base !== of) throw new Error('no picture');
+    render();
+    return new Promise((resolve, reject) => {
       canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('no picture'))), 'image/png');
     });
+  }
 
   // Says how it went on the button itself, for a moment.
   function flash(button: HTMLButtonElement, text: string): void {
@@ -717,14 +778,18 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     setTimeout(() => (button.textContent = label), 1500);
   }
 
-  $('memeDownload').addEventListener('click', () => {
-    void toBlob().then((blob) => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${base?.link ? base.link.id.split('/').pop() : 'custom'}-meme.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
-    });
+  downloadButton.addEventListener('click', () => {
+    const name = `${base?.link ? base.link.id.split('/').pop() : 'custom'}-meme.png`;
+    toBlob().then(
+      (blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      },
+      () => flash(downloadButton, 'Could not save'),
+    );
   });
   copyButton.addEventListener('click', () => {
     // The picture is handed over as a promise: some browsers only take it that way.
@@ -743,12 +808,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   });
   $('memeClose').addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => {
-    if (saveTimer) commit();
-    const closed = base;
-    base = null;
-    picture = null;
-    frame = null;
-    drag = null;
+    const closed = leave();
     if (closed) onClose(closed);
   });
 
@@ -821,8 +881,9 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   });
 
   stage.addEventListener('pointermove', (e) => {
-    const layer = selected && layerOf(selected);
-    if (!drag || !frame || !layer) return;
+    if (!drag || !frame || !selected) return;
+    const layer = layerOf(selected);
+    if (!layer) return;
     const p = pointOf(e, frame);
     const { image } = frame;
     let onX = false;
@@ -839,8 +900,8 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       layer.y = clampField('y', y);
     } else if (drag.mode === 'resize') {
       const to = { x: p.x + drag.grab.x, y: p.y + drag.grab.y };
-      const min = Math.min(image.width, image.height) * 0.03;
-      const box = unplace(resize(drag.origin, drag.corner, to, { min, ratio: drag.ratio }), frame);
+      const range = sizeRange(frame, selected.kind);
+      const box = unplace(resize(drag.origin, drag.corner, to, { ...range, ratio: drag.ratio }), frame);
       layer.x = box.x;
       layer.y = box.y;
       layer.w = box.w;
@@ -880,7 +941,10 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
   dialog.addEventListener('keydown', (e) => {
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
-    if (mod && !e.altKey && (key === 'z' || key === 'y')) {
+    // A field that isn't part of the design has its own undo.
+    const apart =
+      e.target instanceof HTMLInputElement && ['search', 'text', 'number'].includes(e.target.type);
+    if (mod && !e.altKey && !apart && (key === 'z' || key === 'y')) {
       e.preventDefault();
       if (key === 'y' || e.shiftKey) redo();
       else undo();
@@ -897,7 +961,20 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       ArrowDown: [0, step],
     };
     const move = moves[e.key];
-    if (move) {
+    if (move && e.altKey) {
+      // Alt resizes it, about its middle: an image as a whole, a text's box each way.
+      e.preventDefault();
+      const across = move[0] * 2;
+      const down = move[1] * 2;
+      if ('h' in layer) {
+        layer.w = clampField('w', layer.w + across);
+        layer.h = clampField('h', layer.h + down);
+      } else {
+        layer.w = clampField('w', layer.w + across + down);
+      }
+      syncSelection();
+      changed();
+    } else if (move) {
       e.preventDefault();
       layer.x = clampField('x', layer.x + move[0]);
       layer.y = clampField('y', layer.y + move[1]);
@@ -916,9 +993,9 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
 
   return {
     open(next, params) {
+      // Straight from another picture, when the hash goes from one to the next.
+      leave();
       base = next;
-      picture = null;
-      frame = null;
       selected = null;
       const draft = next.link && drafts.get(next.src);
       state = params?.size ? decode(params) : draft ? (JSON.parse(draft) as Meme) : blank();
@@ -940,6 +1017,7 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
         if (base !== next) return;
         picture = img;
         wrap.hidden = false;
+        downloadButton.disabled = copyButton.disabled = false;
         render();
       };
       img.onerror = () => {
