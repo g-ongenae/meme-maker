@@ -49,6 +49,10 @@
   box-sizing: border-box;
 }
 body {
+  /* A column filling the window, so the footer sits at its bottom on short pages. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
   margin: 0;
   background: var(--bg);
   color: var(--text);
@@ -328,6 +332,9 @@ h1 {
 }
 .card.create .name {
   color: var(--accent-text);
+}
+main {
+  flex: 1;
 }
 #empty {
   padding: 64px 20px;
