@@ -107,6 +107,15 @@ the top and one at the bottom: type, and download.
 - **Images** go on top, under the texts: a character from the Characters category, or
   uploaded, dropped or pasted ones. They’re moved, resized and rotated like the texts, and
   can be flipped.
+- **Panels**: the Formats made of panels (the blank comic panels, the starter pack, “What my
+  friends think I do” and bingo) start with texts where the format has them (a text at the top of
+  each comic panel, a title, the labels under the panels…), and each panel can be filled with a
+  Complete template or an uploaded picture: click a panel, on the picture or in the list, then
+  pick one (an image dropped on a panel fills it too). The picture covers the panel, cropped:
+  drag it to move it, and zoom with the wheel, the slider or <kbd>+</kbd> and <kbd>-</kbd>; “Fit”
+  shows it whole. A new text or image goes in the selected panel, and layers snap to the
+  panels’ middles as well as the picture’s. The panels of each format are in `client/formats.ts`,
+  measured on the template’s own file (a duplicate’s file isn’t laid out).
 - Undo and redo (<kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>),
   “Copy” to the clipboard and “Download PNG”, at the picture’s own size or at a width.
 - The meme is kept in the URL hash, so it can be bookmarked or shared (uploaded images stay
@@ -124,7 +133,7 @@ Impact is rarely installed outside Windows and macOS, so the page falls back on
 [Anton](https://fonts.google.com/specimen/Anton), which looks like it, served from the
 `@fontsource/anton` package (SIL Open Font License).
 
-The model, its URL encoding, the fitting of texts, the geometry of layers and the drawing
+The model, its URL encoding, the fitting of texts, the geometry of layers and panels and the drawing
 are in `client/meme.ts` (DOM-free, tested), and the dialog in `client/meme-editor.ts`.
 
 ### Diagrams

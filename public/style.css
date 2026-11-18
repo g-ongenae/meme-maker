@@ -917,14 +917,46 @@ dialog::backdrop {
 .layers {
   position: absolute;
   inset: 0;
+  /* The boxes take the pointer, not the space between them: the panels are under the layers. */
+  pointer-events: none;
+}
+.layer,
+.panel {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
 }
 .layer {
-  position: absolute;
   display: grid;
   place-items: center;
   cursor: move;
-  touch-action: none;
-  user-select: none;
+}
+/* A format's panels: one is picked to fill, and its picture dragged. */
+.panel {
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.panel.filled {
+  cursor: grab;
+}
+.panel:hover {
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+}
+.panel.selected,
+.panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.panel:not(.filled):is(:hover, .selected)::before {
+  content: attr(data-hint);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
 }
 .layer:hover,
 .layer.empty {
@@ -986,7 +1018,7 @@ dialog::backdrop {
   border-color: #fff;
   cursor: grab;
 }
-.meme-canvas.dragging :is(.layer, .handle) {
+.meme-canvas.dragging :is(.layer, .handle, .panel) {
   cursor: grabbing;
 }
 /* Shown while a layer is dragged onto the middle of the picture. */
@@ -1074,7 +1106,56 @@ dialog::backdrop {
   gap: 6px;
   padding-top: 4px;
 }
-#stickers {
+/* The panels, in order, with what's in them. */
+.panel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.panel-list button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--tile);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.panel-list img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.panel-list img + span {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: 10px;
+}
+.panel-list button:hover,
+.panel-list button[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+.panel-list button[aria-pressed='true'] {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+#stickers,
+#panelLibrary {
   max-height: 168px;
   overflow-y: auto;
   overscroll-behavior: contain;

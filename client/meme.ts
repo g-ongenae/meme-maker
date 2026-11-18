@@ -76,6 +76,39 @@ export interface ImageLayer extends Omit<Box, 'h'> {
   flip: boolean;
 }
 
+/**
+ * A panel of a format, where a picture can go: its left, top, width and
+ * height in % of the picture's width (x, w) and height (y, h).
+ */
+export interface Panel {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * A picture filling a panel: as much of it as covers the panel, cropped about
+ * a point of it, from close up or not.
+ */
+export interface Fill {
+  /** The panel's index in its format's layout. */
+  panel: number;
+  /** A library template's id, or the key of an uploaded image (see `isLocal`). */
+  image: string;
+  /** 1 for the picture to cover the panel, cropped, more to be closer, and less to show more of it. */
+  zoom: number;
+  /** The point of the picture at the panel's middle, in % of its width and height. */
+  x: number;
+  y: number;
+}
+
+/** What a format is made of: its panels, and the texts a meme of it starts with. */
+export interface Layout {
+  panels: readonly Panel[];
+  texts: readonly TextLayer[];
+}
+
 export interface Pad {
   top: number;
   right: number;
@@ -87,6 +120,8 @@ export interface Meme {
   /** Drawn over the images, the last one on top. */
   texts: TextLayer[];
   images: ImageLayer[];
+  /** The pictures in the format's panels, a panel having one at most. Drawn under the images. */
+  fills: Fill[];
   /** Space around the picture, in % of its height (top, bottom) and width (left, right). */
   pad: Pad;
   padColor: string;
@@ -104,6 +139,8 @@ export const LIMITS = {
   size: { min: 1, max: 50, step: 0.5 },
   outlineWidth: { min: 0, max: 25, step: 1 },
   pad: { min: 0, max: 100, step: 1 },
+  zoom: { min: 0.1, max: 5, step: 0.01 },
+  focus: { min: 0, max: 100, step: 0.1 },
   width: { min: 64, max: 4000, step: 1 },
 } as const;
 
@@ -112,7 +149,7 @@ export type NumberField = keyof typeof LIMITS;
 /** Rounds a value to its field's step, within its limits. */
 export function clampField(field: NumberField, value: number): number {
   const { min, max, step } = LIMITS[field];
-  const rounded = Number((Math.round(value / step) * step).toFixed(1));
+  const rounded = Number((Math.round(value / step) * step).toFixed(2));
   return Math.min(max, Math.max(min, rounded));
 }
 
@@ -188,9 +225,13 @@ export const starter = (): TextLayer[] => [
   { ...TEXT_DEFAULT, y: 87, valign: 'bottom' },
 ];
 
-export const blank = (): Meme => ({
-  texts: starter(),
+/** The texts a meme of a layout starts with, or the starter texts without one. */
+const startOf = (layout?: Layout): TextLayer[] => (layout ? layout.texts.map((t) => ({ ...t })) : starter());
+
+export const blank = (layout?: Layout): Meme => ({
+  texts: startOf(layout),
   images: [],
+  fills: [],
   pad: { top: 0, right: 0, bottom: 0, left: 0 },
   padColor: '#ffffff',
   width: 0,
@@ -312,6 +353,75 @@ export function imageBox(layer: ImageLayer, natural: Size, f: Frame): Box {
 export function fitWidth(natural: Size, picture: Size, share = 40): number {
   const byHeight = share * (picture.height / picture.width) * (natural.width / natural.height);
   return clampField('w', Math.min(share, byHeight));
+}
+
+/** A panel's place in the result, in px. */
+export const panelRect = (p: Panel, f: Frame): Rect => ({
+  x: f.image.x + (p.x / 100) * f.image.width,
+  y: f.image.y + (p.y / 100) * f.image.height,
+  width: (p.w / 100) * f.image.width,
+  height: (p.h / 100) * f.image.height,
+});
+
+/** Where a picture is drawn in a place: the part of it that's shown, and where that goes. */
+export interface Cropped {
+  source: Rect;
+  target: Rect;
+}
+
+/**
+ * How a picture fills a place: at a zoom of 1 it covers it, cropped about its
+ * point but never past its edges; closer, it's cropped more; further, it may
+ * not cover it any more, and is then in the middle of the place that way.
+ */
+export function crop(fill: Pick<Fill, 'zoom' | 'x' | 'y'>, natural: Size, into: Rect): Cropped {
+  const scale = Math.max(into.width / natural.width, into.height / natural.height) * fill.zoom;
+  const axis = (focus: number, size: number, room: number, start: number) => {
+    const shown = Math.min(size, room / scale);
+    const drawn = shown * scale;
+    return {
+      from: clamp((focus / 100) * size - shown / 2, 0, size - shown),
+      shown,
+      at: start + (room - drawn) / 2,
+      drawn,
+    };
+  };
+  const x = axis(fill.x, natural.width, into.width, into.x);
+  const y = axis(fill.y, natural.height, into.height, into.y);
+  return {
+    source: { x: x.from, y: y.from, width: x.shown, height: y.shown },
+    target: { x: x.at, y: y.at, width: x.drawn, height: y.drawn },
+  };
+}
+
+/** The zoom at which a picture fits in a place, whole. */
+export const fitZoom = (natural: Size, into: Size): number => {
+  const across = into.width / natural.width;
+  const down = into.height / natural.height;
+  // Down, for it to fit to the pixel.
+  return clampField('zoom', Math.floor((Math.min(across, down) / Math.max(across, down)) * 100) / 100);
+};
+
+/**
+ * The point of a fill once its picture is dragged by (dx, dy) px of the
+ * result: from the part that is shown, so that dragging back from an edge
+ * moves it at once.
+ */
+export function pan(
+  fill: Pick<Fill, 'zoom' | 'x' | 'y'>,
+  natural: Size,
+  into: Size,
+  dx: number,
+  dy: number,
+): Pick<Fill, 'x' | 'y'> {
+  const { source, target } = crop(fill, natural, { x: 0, y: 0, ...into });
+  const scale = target.width / source.width;
+  const along = (from: number, shown: number, size: number, by: number): number =>
+    clampField('focus', (clamp(from + shown / 2 - by / scale, shown / 2, size - shown / 2) / size) * 100);
+  return {
+    x: along(source.x, source.width, natural.width, dx),
+    y: along(source.y, source.height, natural.height, dy),
+  };
 }
 
 /** A corner of a box: left or right (-1, 1), then top or bottom (-1, 1). */
@@ -463,6 +573,17 @@ export interface Ctx<I> {
   clearRect(x: number, y: number, w: number, h: number): void;
   fillRect(x: number, y: number, w: number, h: number): void;
   drawImage(image: I, x: number, y: number, w: number, h: number): void;
+  drawImage(
+    image: I,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+  ): void;
 }
 
 /** The CSS font of a text, at a size in px. */
@@ -518,7 +639,8 @@ export interface Picture<I> extends Size {
 
 /**
  * Draws the meme on a context of its frame's size: the space around, the
- * picture, the images that `pictures` has (the others are left out), then the texts.
+ * picture, the pictures in its `panels`, the images, then the texts. What
+ * `pictures` doesn't have is left out.
  */
 export function paint<I>(
   ctx: Ctx<I>,
@@ -526,6 +648,7 @@ export function paint<I>(
   f: Frame,
   picture: I,
   pictures: (image: string) => Picture<I> | undefined,
+  panels: readonly Panel[] = [],
 ): void {
   ctx.clearRect(0, 0, f.width, f.height);
   if (f.width > f.image.width || f.height > f.image.height) {
@@ -533,6 +656,13 @@ export function paint<I>(
     ctx.fillRect(0, 0, f.width, f.height);
   }
   ctx.drawImage(picture, f.image.x, f.image.y, f.image.width, f.image.height);
+  for (const fill of m.fills) {
+    const panel = panels[fill.panel];
+    const pic = panel && pictures(fill.image);
+    if (!pic) continue;
+    const { source: s, target: t } = crop(fill, pic, panelRect(panel, f));
+    ctx.drawImage(pic.image, s.x, s.y, s.width, s.height, t.x, t.y, t.width, t.height);
+  }
   for (const layer of m.images) {
     const pic = pictures(layer.image);
     if (!pic) continue;
@@ -576,6 +706,15 @@ const IMAGE_KEYS = {
   rotation: 'r',
   flip: 'm',
 } as const satisfies Record<Exclude<keyof ImageLayer, 'image'>, string>;
+
+const FILL_KEYS = {
+  panel: 'n',
+  zoom: 'z',
+  x: 'x',
+  y: 'y',
+} as const satisfies Record<Exclude<keyof Fill, 'image'>, string>;
+
+export const FILL_DEFAULT: Readonly<Fill> = { panel: 0, image: '', zoom: 1, x: 50, y: 50 };
 
 function encodeFields<T extends object>(
   layer: T,
@@ -646,18 +785,39 @@ function decodeImage(image: string, fields: string): ImageLayer {
   };
 }
 
+/** A fill, unless its panel isn't one of the `count` there are. */
+function decodeFill(image: string, fields: string, count: number): Fill | null {
+  const f = decodeFields(fields);
+  const d = FILL_DEFAULT;
+  const panel = Number(f.get(FILL_KEYS.panel) ?? d.panel);
+  if (!Number.isInteger(panel) || panel < 0 || panel >= count) return null;
+  return {
+    panel,
+    image,
+    zoom: number('zoom', f.get(FILL_KEYS.zoom), d.zoom),
+    x: number('focus', f.get(FILL_KEYS.x), d.x),
+    y: number('focus', f.get(FILL_KEYS.y), d.y),
+  };
+}
+
 const PAD_SIDES = ['top', 'right', 'bottom', 'left'] as const;
 
+const textKey = (t: TextLayer): string => `${t.text}\n${encodeFields(t, TEXT_DEFAULT, TEXT_KEYS)}`;
+
+const sameTexts = (a: readonly TextLayer[], b: readonly TextLayer[]): boolean =>
+  a.length === b.length && a.every((t, i) => textKey(t) === textKey(b[i]));
+
 /**
- * URL parameters for a meme: only what differs from a blank one. Each text is
- * a `t` and its fields a `ts`, in turn, and each image an `i` and an `is`.
- * Uploaded images are left out.
+ * URL parameters for a meme: only what differs from a blank one of its
+ * layout. Each text is a `t` and its fields a `ts`, in turn, each image an
+ * `i` and an `is`, and each panel's picture a `g` and a `gs`. Uploaded images
+ * are left out.
  */
-export function encode(m: Meme): URLSearchParams {
+export function encode(m: Meme, layout?: Layout): URLSearchParams {
   const params = new URLSearchParams();
   // No text at all is said, or it would be the starter texts.
   if (!m.texts.length) params.set('nt', '1');
-  else if (JSON.stringify(m.texts) !== JSON.stringify(starter())) {
+  else if (!sameTexts(m.texts, startOf(layout))) {
     for (const t of m.texts) {
       params.append('t', t.text);
       params.append('ts', encodeFields(t, TEXT_DEFAULT, TEXT_KEYS));
@@ -668,15 +828,23 @@ export function encode(m: Meme): URLSearchParams {
     params.append('i', layer.image);
     params.append('is', encodeFields(layer, IMAGE_DEFAULT, IMAGE_KEYS));
   }
+  for (const fill of m.fills) {
+    if (isLocal(fill.image)) continue;
+    params.append('g', fill.image);
+    params.append('gs', encodeFields(fill, FILL_DEFAULT, FILL_KEYS));
+  }
   if (PAD_SIDES.some((side) => m.pad[side])) params.set('p', PAD_SIDES.map((side) => m.pad[side]).join('-'));
   if (m.padColor !== '#ffffff') params.set('pc', m.padColor.slice(1));
   if (m.width) params.set('w', String(m.width));
   return params;
 }
 
-/** A meme from URL parameters: invalid ones are ignored and numbers clamped. */
-export function decode(params: URLSearchParams): Meme {
-  const m = blank();
+/**
+ * A meme of a layout from URL parameters: invalid ones are ignored, numbers
+ * clamped, and a panel only has the first picture given to it.
+ */
+export function decode(params: URLSearchParams, layout?: Layout): Meme {
+  const m = blank(layout);
   const texts = params.getAll('t');
   const textFields = params.getAll('ts');
   if (texts.length || params.has('nt')) {
@@ -687,6 +855,12 @@ export function decode(params: URLSearchParams): Meme {
     .getAll('i')
     .slice(0, MAX_LAYERS)
     .flatMap((image, i) => (image && !isLocal(image) ? decodeImage(image, imageFields[i] ?? '') : []));
+  const fillFields = params.getAll('gs');
+  const count = layout?.panels.length ?? 0;
+  for (const [i, image] of params.getAll('g').entries()) {
+    const fill = image && !isLocal(image) ? decodeFill(image, fillFields[i] ?? '', count) : null;
+    if (fill && !m.fills.some((other) => other.panel === fill.panel)) m.fills.push(fill);
+  }
   // All four sides or none: a part that isn't a size would pass the others on to the wrong sides.
   const pad = (params.get('p') ?? '').split('-');
   if (pad.length === PAD_SIDES.length && pad.every((part) => /^\d+(\.\d+)?$/.test(part))) {
