@@ -79,13 +79,22 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
     shortcuts: [
       { keys: [['d']], does: 'Download the PNG' },
       { keys: [['Ctrl+C']], does: 'Copy the picture, when no text is selected' },
-      { keys: [['s']], does: 'Search the characters' },
+      { keys: [['s']], does: 'Search the characters, or the templates for the selected panel' },
       { keys: [['Ctrl+Z']], does: 'Undo' },
       { keys: [['Ctrl+Shift+Z'], ['Ctrl+Y']], does: 'Redo' },
       { keys: [[ARROWS]], does: 'Move the selected text or image (Shift: further)' },
       { keys: [[`Alt+${ARROWS}`]], does: 'Resize it' },
       { keys: [['Delete'], ['Backspace']], does: 'Remove it' },
       { keys: [['Enter']], does: 'Edit the selected text' },
+    ],
+  },
+  {
+    title: 'Meme editor, on a panel',
+    shortcuts: [
+      { keys: [[ARROWS]], does: 'Move its picture (Shift: further)' },
+      { keys: [['+'], ['-']], does: 'Zoom its picture in or out' },
+      { keys: [['Delete'], ['Backspace']], does: 'Empty it' },
+      { keys: [['Enter'], ['Space']], does: 'Search the templates to fill it with' },
     ],
   },
   {

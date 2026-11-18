@@ -89,7 +89,7 @@ export interface MemeEditor {
   download(): void;
   /** Copies the meme to the clipboard, when it can: false when it can't. */
   copy(): boolean;
-  /** Goes to the characters' search. */
+  /** Goes to the characters' search, or a selected panel's templates. */
   focusSearch(): void;
 }
 
@@ -1414,9 +1414,11 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
       return true;
     },
     focusSearch() {
-      if (stickerSearch.hidden) return;
-      stickerSearch.scrollIntoView({ block: 'nearest' });
-      stickerSearch.select();
+      // A selected panel's own search: the templates to fill it with.
+      const search = selectedPanel() !== null && !panelSection.hidden ? panelSearch : stickerSearch;
+      if (search.hidden) return;
+      search.scrollIntoView({ block: 'nearest' });
+      search.select();
     },
     setLibrary(templates) {
       byId = new Map(templates.map((t) => [t.id, t]));
