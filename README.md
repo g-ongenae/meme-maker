@@ -101,6 +101,9 @@ the top and one at the bottom: type, and download.
   still that is edited.
 - “Add text…” in the [background editor](#create-a-background) makes a meme of the
   background made there.
+- “Create from image”, next to “Create background”, makes a meme of an image of your own,
+  like a template; so does dropping or pasting one on the list. It stays local: it isn’t
+  kept in the URL hash.
 
 Impact is rarely installed outside Windows and macOS, so the page falls back on
 [Anton](https://fonts.google.com/specimen/Anton), which looks like it, served from the

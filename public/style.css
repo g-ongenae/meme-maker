@@ -137,6 +137,7 @@ h1 {
   font-weight: 550;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
 }
 .header-button:hover {
   background: var(--accent-text);

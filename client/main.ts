@@ -81,6 +81,17 @@ const editor = createEditor({
     memeEditor.open({ name: 'Custom background', src, dispose: () => URL.revokeObjectURL(src) });
   },
 });
+const importImage = $<HTMLInputElement>('importImage');
+
+// A picture of the user's own, made into a meme like a template.
+function createFrom(file: File | undefined): boolean {
+  if (!file?.type.startsWith('image/')) return false;
+  const src = URL.createObjectURL(file);
+  const name = file.name.replace(/\.[^.]*$/, '') || 'Imported image';
+  memeEditor.open({ name, src, dispose: () => URL.revokeObjectURL(src) });
+  return true;
+}
+const anyOpen = (): boolean => viewer.open || editor.isOpen || memeEditor.isOpen;
 
 // Viewer preferences, remembered across visits (storage can be unavailable).
 const prefs = {
@@ -798,6 +809,25 @@ viewer.addEventListener('keydown', (e) => {
   }
 });
 window.addEventListener('hashchange', openFromHash);
+$('createFromImage').addEventListener('click', () => importImage.click());
+importImage.addEventListener('change', () => {
+  createFrom(importImage.files?.[0]);
+  importImage.value = '';
+});
+// An image dropped or pasted on the list is imported too.
+document.addEventListener('dragover', (e) => {
+  if (!anyOpen() && e.dataTransfer?.types.includes('Files')) e.preventDefault();
+});
+document.addEventListener('drop', (e) => {
+  if (anyOpen() || !e.dataTransfer?.files.length) return;
+  e.preventDefault();
+  createFrom([...e.dataTransfer.files].find((f) => f.type.startsWith('image/')));
+});
+document.addEventListener('paste', (e) => {
+  if (anyOpen() || e.target instanceof HTMLInputElement) return;
+  if (createFrom([...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))))
+    e.preventDefault();
+});
 document.addEventListener('keydown', (e) => {
   if (e.key === '/' && document.activeElement !== search && !viewer.open && !editor.isOpen) {
     e.preventDefault();
