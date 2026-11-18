@@ -487,6 +487,7 @@ function display(card: Card, t: Duplicate): void {
   downloadLink.download = t.file.split('/').pop() ?? t.file;
   sourceLink.href = t.source.pageUrl;
   sourceLink.textContent = 'View on imgflip';
+  sourceLink.classList.remove('primary');
   // A character is looked up by the meme it was cut out of.
   kymLink.href = kymUrl((from ?? card.template).name);
   kymLink.hidden = false;
@@ -579,6 +580,8 @@ function displayDiagram(card: DiagramCard, format: DiagramFormat): void {
   // Until the links are ready, they lead to the editor.
   sourceLink.href = openLink.href = downloadLink.href = editorUrl(d, format);
   sourceLink.textContent = 'Edit in mermaid.live';
+  // With no Edit button for a diagram, editing it in mermaid.live takes its look.
+  sourceLink.classList.add('primary');
   kymLink.hidden = true;
   gifMakerLink.hidden = true;
   editLink.hidden = true;
