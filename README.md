@@ -168,4 +168,4 @@ npm run typecheck       # tsc, for Node and browser code
 npm test                # node --test on every *.test.ts
 ```
 
-CI (`.github/workflows/ci.yml`) runs all four on every push to `master` and every pull request.
+CI (`.github/workflows/ci.yml`) runs all four on every push to `main` and every pull request.
