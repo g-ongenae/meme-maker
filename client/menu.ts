@@ -3,25 +3,45 @@
 
 import { $ } from './dom.ts';
 
-export function createMenu(buttonId: string, menuId: string): void {
+export interface Menu {
+  /** Closes it, handing the focus back to its button if it was inside. */
+  close(): void;
+}
+
+// Kept clear of the viewport's edges.
+const MARGIN = 8;
+
+export function createMenu(buttonId: string, menuId: string): Menu {
   const button = $<HTMLButtonElement>(buttonId);
   const menu = $(menuId);
   const items = (): HTMLElement[] => [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]')];
 
-  // Under the button, right-aligned with it.
+  // A dialog opened from the menu gives the focus back to the button when it closes, not to
+  // a hidden item.
+  const close = () => {
+    if (!menu.matches(':popover-open')) return;
+    if (menu.contains(document.activeElement)) button.focus();
+    menu.hidePopover();
+  };
+
+  // Under the button, right-aligned with it unless that leaves the viewport.
   menu.addEventListener('beforetoggle', (e) => {
     const open = (e as ToggleEvent).newState === 'open';
     button.setAttribute('aria-expanded', String(open));
     if (!open) return;
     const r = button.getBoundingClientRect();
+    const { clientWidth, clientHeight } = document.documentElement;
+    const width = Math.min(parseFloat(getComputedStyle(menu).width) || 0, clientWidth - 2 * MARGIN);
+    const left = Math.max(MARGIN, Math.min(r.right - width, clientWidth - MARGIN - width));
+    menu.style.left = `${left}px`;
     menu.style.top = `${r.bottom + 6}px`;
-    menu.style.right = `${document.documentElement.clientWidth - r.right}px`;
+    menu.style.maxHeight = `${Math.max(0, clientHeight - r.bottom - 6 - MARGIN)}px`;
   });
   menu.addEventListener('toggle', (e) => {
     if ((e as ToggleEvent).newState === 'open') items()[0]?.focus();
   });
   menu.addEventListener('click', (e) => {
-    if ((e.target as Element).closest('[role="menuitem"]')) menu.hidePopover();
+    if ((e.target as Element).closest('[role="menuitem"]')) close();
   });
   menu.addEventListener('keydown', (e) => {
     const all = items();
@@ -37,4 +57,5 @@ export function createMenu(buttonId: string, menuId: string): void {
     all[to]?.focus();
   });
   addEventListener('resize', () => menu.hidePopover());
+  return { close };
 }
