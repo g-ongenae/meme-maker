@@ -11,14 +11,17 @@ meme-maker is a hobby project, free to use. It has no intention of making money 
 - **no ads**,
 - **no tracking or analytics** (see the [privacy notice](PRIVACY.md)),
 - **no accounts, subscriptions, paid features or sponsored content**,
-- nothing is sold, and no data is sold or shared.
+- nothing is sold, and no personal data is sold or shared.
 
 ## The templates
 
 The meme templates, and the characters cut out of them, belong to their respective owners. This
 project doesn't claim any rights to them. They were collected from the public template gallery of
-[imgflip](https://imgflip.com/memetemplates), and every template links back to its page there
+[imgflip](https://imgflip.com/memetemplates), and every one of them links back to its page there
 (“View on imgflip”).
+
+The Diagrams category is different: it holds this project's own example diagrams, drawn by
+[mermaid.ink](https://mermaid.ink), and links to [mermaid.live](https://mermaid.live).
 
 This project isn't affiliated with or endorsed by imgflip, Know Your Meme, Mermaid or the owners of
 the templates.
@@ -26,13 +29,17 @@ the templates.
 ## Removal requests
 
 If you own the rights to an image shown on this website, or it shows you, and you want it removed,
-open an issue at **<https://github.com/g-ongenae/meme-maker/issues>** with:
+open an issue at **<https://github.com/g-ongenae/meme-maker/issues>** (it needs a GitHub account)
+with:
 
-- the template's name, or a link to it on this website,
-- why it should be removed (for example, that you own its copyright).
+- a link to the template on this website, or its exact name,
+- a short reason (for example, that you own its copyright, or that it shows you).
 
-It will be removed as soon as possible. Issues are public: don't put personal details in them that
-you don't want published.
+Every request is reviewed, and answered on the issue. When it's justified, the image is removed as
+soon as possible, with its duplicates, its thumbnails and the characters cut out of it.
+
+Issues are public: don't put personal details or documents in them that you don't want published.
+If more is needed to settle a request, the issue will say how to send it.
 
 ## What you make is your responsibility
 
