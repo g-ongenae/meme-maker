@@ -83,7 +83,7 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
       { keys: [['Ctrl+Shift+Z'], ['Ctrl+Y']], does: 'Redo' },
       { keys: [[ARROWS]], does: 'Move the selected text or image (Shift: further)' },
       { keys: [[`Alt+${ARROWS}`]], does: 'Resize it' },
-      { keys: [['Delete']], does: 'Remove it' },
+      { keys: [['Delete'], ['Backspace']], does: 'Remove it' },
       { keys: [['Enter']], does: 'Edit the selected text' },
     ],
   },

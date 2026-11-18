@@ -85,7 +85,7 @@ opens it and <kbd>E</kbd> edits it. In the viewer, the arrow keys go to the prev
 template, <kbd>A</kbd> shows the alternatives, <kbd>E</kbd> edits, <kbd>O</kbd> opens the original
 and <kbd>D</kbd> downloads it. In the editors, <kbd>D</kbd> downloads the picture; in the meme
 editor, <kbd>S</kbd> searches the characters and <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the meme when
-no text is selected. Letters are typed, not shortcuts, in a field. They're listed in
+no text is selected. Letters are typed, not shortcuts, in a field or on a text of the meme. They're listed in
 `client/shortcuts.ts`, and handled in `client/main.ts`.
 
 ### Make a meme

@@ -968,6 +968,11 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (mod || e.altKey || isField(e.target as Element) || isField(document.activeElement)) return;
+  // A key held down repeats: only the arrows are meant to.
+  if (e.repeat && !key.startsWith('Arrow')) return;
+  const after = going;
+  clearTimeout(going);
+  going = undefined;
   if (key === '?') {
     e.preventDefault();
     help.toggle();
@@ -976,9 +981,6 @@ document.addEventListener('keydown', (e) => {
   if (help.isOpen) return;
 
   let handled = true;
-  const after = going;
-  clearTimeout(going);
-  going = undefined;
   const target = after === undefined ? undefined : goToCategory(key);
   if (target !== undefined) goTo(target);
   else if (key === '.') toTop();
