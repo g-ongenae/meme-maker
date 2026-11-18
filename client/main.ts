@@ -76,11 +76,22 @@ const editor = createEditor({
   onClose: () => {
     if (isEditorHash(location.hash)) setHash('');
   },
-  onCaption: (picture) => {
-    const src = URL.createObjectURL(picture);
-    memeEditor.open({ name: 'Custom background', src, dispose: () => URL.revokeObjectURL(src) });
-  },
+  onCaption: (picture) => openLocal('Custom background', picture),
 });
+const importImage = $<HTMLInputElement>('importImage');
+
+function openLocal(name: string, picture: Blob): void {
+  const src = URL.createObjectURL(picture);
+  memeEditor.open({ name, src, dispose: () => URL.revokeObjectURL(src) });
+}
+
+// A picture of the user's own, made into a meme like a template.
+function createFrom(file: File | undefined): boolean {
+  if (!file?.type.startsWith('image/')) return false;
+  openLocal(file.name.replace(/\.[^.]*$/, '') || 'Imported image', file);
+  return true;
+}
+const anyOpen = (): boolean => viewer.open || editor.isOpen || memeEditor.isOpen;
 
 // Viewer preferences, remembered across visits (storage can be unavailable).
 const prefs = {
@@ -798,8 +809,27 @@ viewer.addEventListener('keydown', (e) => {
   }
 });
 window.addEventListener('hashchange', openFromHash);
+$('createFromImage').addEventListener('click', () => importImage.click());
+importImage.addEventListener('change', () => {
+  createFrom(importImage.files?.[0]);
+  importImage.value = '';
+});
+// An image dropped or pasted on the list is imported too.
+document.addEventListener('dragover', (e) => {
+  if (!anyOpen() && e.dataTransfer?.types.includes('Files')) e.preventDefault();
+});
+document.addEventListener('drop', (e) => {
+  if (anyOpen() || !e.dataTransfer?.files.length) return;
+  e.preventDefault();
+  createFrom([...e.dataTransfer.files].find((f) => f.type.startsWith('image/')));
+});
+document.addEventListener('paste', (e) => {
+  if (anyOpen() || e.target instanceof HTMLInputElement) return;
+  if (createFrom([...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))))
+    e.preventDefault();
+});
 document.addEventListener('keydown', (e) => {
-  if (e.key === '/' && document.activeElement !== search && !viewer.open && !editor.isOpen) {
+  if (e.key === '/' && document.activeElement !== search && !anyOpen()) {
     e.preventDefault();
     search.select();
   }
@@ -829,7 +859,9 @@ async function init(): Promise<void> {
   if (isSortKey(sortParam)) sort.value = sortParam;
   const hash = location.hash;
   render();
-  if (hash) {
+  // An image imported while the templates were loading isn't replaced by the address.
+  if (hash && memeEditor.isOpen) setHash('');
+  else if (hash) {
     history.replaceState(null, '', location.pathname + location.search + hash);
     openFromHash();
   }
