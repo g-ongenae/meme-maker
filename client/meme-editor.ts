@@ -75,6 +75,12 @@ export interface MemeEditor {
   readonly isOpen: boolean;
   /** Templates the images on top can be picked from, once loaded. */
   setLibrary(templates: Template[]): void;
+  /** Downloads the meme, once its picture is loaded. */
+  download(): void;
+  /** Copies the meme to the clipboard, when it can: false when it can't. */
+  copy(): boolean;
+  /** Goes to the characters' search. */
+  focusSearch(): void;
 }
 
 type Selection = { kind: 'text' | 'image'; index: number };
@@ -1030,6 +1036,19 @@ export function createMemeEditor({ onClose }: { onClose(base: Base): void }): Me
     },
     get isOpen() {
       return dialog.open;
+    },
+    download() {
+      if (!downloadButton.disabled) downloadButton.click();
+    },
+    copy() {
+      if (copyButton.hidden || copyButton.disabled) return false;
+      copyButton.click();
+      return true;
+    },
+    focusSearch() {
+      if (stickerSearch.hidden) return;
+      stickerSearch.scrollIntoView({ block: 'nearest' });
+      stickerSearch.select();
     },
     setLibrary(templates) {
       byId = new Map(templates.map((t) => [t.id, t]));

@@ -20,8 +20,10 @@ import {
 } from './diagrams.ts';
 import { $ } from './dom.ts';
 import { createEditor, isEditorHash } from './editor.ts';
+import { createHelp } from './help.ts';
 import { editHash, parseEditHash } from './meme.ts';
 import { createMemeEditor } from './meme-editor.ts';
+import { GO_DELAY, goToCategory } from './shortcuts.ts';
 import {
   type Duplicate,
   type SearchKeys,
@@ -40,6 +42,7 @@ import {
   thumbUrl,
 } from './templates.ts';
 
+const header = document.querySelector('header')!;
 const grid = $<HTMLUListElement>('grid');
 const empty = $<HTMLParagraphElement>('empty');
 const count = $('count');
@@ -93,7 +96,8 @@ function createFrom(file: File | undefined): boolean {
   openLocal(file.name.replace(/\.[^.]*$/, '') || 'Imported image', file);
   return true;
 }
-const anyOpen = (): boolean => viewer.open || editor.isOpen || memeEditor.isOpen;
+const anyOpen = (): boolean => viewer.open || editor.isOpen || memeEditor.isOpen || help.isOpen;
+const help = createHelp();
 
 // Viewer preferences, remembered across visits (storage can be unavailable).
 const prefs = {
@@ -792,7 +796,18 @@ next.addEventListener('click', () => step(1));
 viewer.addEventListener('click', (e) => {
   if (e.target === viewer) viewer.close();
 });
+// Closing the viewer selects the template it was on, unless a shortcut closed
+// it to go elsewhere.
+let reselect = true;
+function closeViewer(): void {
+  if (!viewer.open) return;
+  reselect = false;
+  viewer.close();
+}
 viewer.addEventListener('close', () => {
+  const was = current;
+  if (reselect && was && !was.el.hidden && !editor.isOpen && !memeEditor.isOpen) select(tileOf(was));
+  reselect = true;
   current = null;
   shown = null;
   shownFormat = null;
@@ -801,18 +816,6 @@ viewer.addEventListener('close', () => {
   bigVideo.load();
   // Unless it's closing for the editor, opened from the address bar.
   if (!isEditorHash(location.hash)) setHash('');
-});
-viewer.addEventListener('keydown', (e) => {
-  if (e.target instanceof HTMLInputElement) return;
-  if (e.key === 'ArrowLeft') step(-1);
-  else if (e.key === 'ArrowRight') step(1);
-  else if (e.ctrlKey || e.metaKey || e.altKey) return;
-  else if (e.key.toLowerCase() === 'a') togglePanel();
-  else if (e.key.toLowerCase() === 'e' && current && !isDiagram(current) && shown) {
-    // Or the key would be typed in the editor's first text, which takes the focus.
-    e.preventDefault();
-    edit(current, shown);
-  }
 });
 window.addEventListener('hashchange', openFromHash);
 $('createFromImage').addEventListener('click', () => importImage.click());
@@ -834,11 +837,167 @@ document.addEventListener('paste', (e) => {
   if (createFrom([...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))))
     e.preventDefault();
 });
-document.addEventListener('keydown', (e) => {
-  if (e.key === '/' && document.activeElement !== search && !anyOpen()) {
-    e.preventDefault();
-    search.select();
+
+// --- keyboard shortcuts, listed in shortcuts.ts
+
+const tileOf = (entry: Entry): HTMLElement => entry.el.firstElementChild as HTMLElement;
+const tiles = (): HTMLElement[] =>
+  [...grid.children].flatMap((li) =>
+    li instanceof HTMLElement && !li.hidden ? [li.firstElementChild as HTMLElement] : [],
+  );
+const entryOf = (tile: Element): Entry | undefined =>
+  cards.find((c) => tileOf(c) === tile) ?? diagramCards.find((c) => tileOf(c) === tile);
+const selectedTile = (): HTMLElement | null =>
+  document.activeElement instanceof HTMLElement && document.activeElement.closest('#grid')
+    ? document.activeElement.closest<HTMLElement>('.card')
+    : null;
+
+// Focuses a tile and scrolls it into view, clear of the sticky header.
+function select(tile: HTMLElement): void {
+  tile.focus({ preventScroll: true });
+  const r = tile.getBoundingClientRect();
+  const top = header.getBoundingClientRect().bottom + 12;
+  if (r.top < top) scrollBy(0, r.top - top);
+  else if (r.bottom > innerHeight - 12) scrollBy(0, r.bottom - innerHeight + 12);
+}
+
+function moveSelection(key: string): void {
+  const all = tiles();
+  if (!all.length) return;
+  const at = all.indexOf(selectedTile()!);
+  if (at < 0) {
+    // The first tile in sight.
+    const top = header.getBoundingClientRect().bottom;
+    select(all.find((t) => t.getBoundingClientRect().bottom > top) ?? all[0]);
+    return;
   }
+  const columns = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+  const lastRow = Math.floor((all.length - 1) / columns);
+  let to = at;
+  if (key === 'ArrowLeft') to = at - 1;
+  else if (key === 'ArrowRight') to = at + 1;
+  else if (key === 'ArrowUp') to = at - columns;
+  // Down from the row above a shorter last one goes to its last tile.
+  else if (Math.floor(at / columns) < lastRow) to = Math.min(at + columns, all.length - 1);
+  if (all[to]) select(all[to]);
+}
+
+function goTo(cat: Category | null): void {
+  closeViewer();
+  category.value = cat ?? '';
+  render();
+  selectedTile()?.blur();
+  scrollTo({ top: 0 });
+}
+
+function toTop(): void {
+  if (memeEditor.isOpen) $('memeForm').scrollTo({ top: 0, behavior: 'smooth' });
+  else if (editor.isOpen) $('editorForm').scrollTo({ top: 0, behavior: 'smooth' });
+  else if (viewer.open) related.scrollTo({ top: 0, behavior: 'smooth' });
+  else {
+    selectedTile()?.blur();
+    scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+// Fields keys are typed in: letters there are text, not shortcuts.
+const UNTYPED = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'image',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+]);
+function isField(el: Element | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (el.isContentEditable || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)
+    return true;
+  return el instanceof HTMLInputElement && !UNTYPED.has(el.type);
+}
+
+function hasSelection(): boolean {
+  const el = document.activeElement;
+  if (
+    (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) &&
+    el.selectionStart !== el.selectionEnd
+  )
+    return true;
+  return document.getSelection()?.isCollapsed === false;
+}
+
+function viewerKey(key: string): boolean {
+  if (key === 'ArrowLeft') step(-1);
+  else if (key === 'ArrowRight') step(1);
+  else if (key === 'a') togglePanel();
+  else if (key === 'e' && current && !isDiagram(current) && shown && !editLink.hidden) edit(current, shown);
+  else if (key === 'o') openLink.click();
+  else if (key === 'd') downloadLink.click();
+  else return false;
+  return true;
+}
+
+function gridKey(key: string): boolean {
+  const tile = selectedTile();
+  if (key.startsWith('Arrow')) {
+    // Unless something else on the page is in focus.
+    if (!tile && document.activeElement !== document.body) return false;
+    moveSelection(key);
+  } else if (key === 'o' && tile) tile.click();
+  else if (key === 'e' && tile) {
+    const entry = entryOf(tile);
+    if (!entry || isDiagram(entry)) return false;
+    show(entry);
+    edit(entry, entry.template);
+  } else return false;
+  return true;
+}
+
+// Waiting for the key after g.
+let going: ReturnType<typeof setTimeout> | undefined;
+
+document.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented || e.isComposing) return;
+  const mod = e.ctrlKey || e.metaKey;
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (mod && key === 'c' && !e.altKey && !e.shiftKey) {
+    if (memeEditor.isOpen && !help.isOpen && !hasSelection() && memeEditor.copy()) e.preventDefault();
+    return;
+  }
+  if (mod || e.altKey || isField(e.target as Element) || isField(document.activeElement)) return;
+  // A key held down repeats: only the arrows are meant to.
+  if (e.repeat && !key.startsWith('Arrow')) return;
+  const after = going;
+  clearTimeout(going);
+  going = undefined;
+  if (key === '?') {
+    e.preventDefault();
+    help.toggle();
+    return;
+  }
+  if (help.isOpen) return;
+
+  let handled = true;
+  const target = after === undefined ? undefined : goToCategory(key);
+  if (target !== undefined) goTo(target);
+  else if (key === '.') toTop();
+  else if (memeEditor.isOpen) {
+    if (key === 'd') memeEditor.download();
+    else if (key === 's') memeEditor.focusSearch();
+    else handled = false;
+  } else if (editor.isOpen) {
+    if (key === 'd') editor.download();
+    else handled = false;
+  } else if (key === 'g') going = setTimeout(() => (going = undefined), GO_DELAY);
+  else if (key === 's' || key === '/') {
+    closeViewer();
+    search.select();
+  } else if (key === 'n') location.hash = '#editor';
+  else handled = viewer.open ? viewerKey(key) : gridKey(key);
+  if (handled) e.preventDefault();
 });
 search.addEventListener('input', render);
 category.addEventListener('change', render);

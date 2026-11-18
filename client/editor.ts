@@ -44,6 +44,8 @@ export interface Editor {
   readonly isOpen: boolean;
   /** Templates the image on top can be picked from, once loaded. */
   setLibrary(templates: Template[]): void;
+  /** Downloads the background. */
+  download(): void;
 }
 
 export function createEditor({
@@ -328,7 +330,7 @@ export function createEditor({
     changed();
   });
 
-  $('editorDownload').addEventListener('click', () => {
+  function download(): void {
     render();
     canvas.toBlob((blob) => {
       if (!blob) return;
@@ -338,7 +340,8 @@ export function createEditor({
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
     }, 'image/png');
-  });
+  }
+  $('editorDownload').addEventListener('click', download);
 
   $('editorCaption').addEventListener('click', () => {
     render();
@@ -499,6 +502,7 @@ export function createEditor({
     get isOpen() {
       return dialog.open;
     },
+    download,
     setLibrary(templates) {
       byId = new Map(templates.map((t) => [t.id, t]));
       library = templates.filter((t) => categoryOf(t) === LIBRARY);
